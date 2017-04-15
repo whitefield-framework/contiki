@@ -12,14 +12,14 @@ static void
 send_packet(mac_callback_t sent, void *ptr)
 {
 	printf("%s called\n", __FUNCTION__);
-  NETSTACK_RDC.send(sent, ptr);
+	NETSTACK_RDC.send(sent, ptr);
 }
 /*---------------------------------------------------------------------------*/
 static void
 packet_input(void)
 {
 	printf("%s called\n", __FUNCTION__);
-  NETSTACK_LLSEC.input();
+	NETSTACK_LLSEC.input();
 }
 /*---------------------------------------------------------------------------*/
 static int
