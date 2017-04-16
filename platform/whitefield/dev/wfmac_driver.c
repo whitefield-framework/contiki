@@ -12,6 +12,7 @@ static void
 send_packet(mac_callback_t sent, void *ptr)
 {
 	printf("%s called\n", __FUNCTION__);
+	fflush(NULL);
 	NETSTACK_RDC.send(sent, ptr);
 }
 /*---------------------------------------------------------------------------*/
@@ -19,6 +20,7 @@ static void
 packet_input(void)
 {
 	printf("%s called\n", __FUNCTION__);
+	fflush(NULL);
 	NETSTACK_LLSEC.input();
 }
 /*---------------------------------------------------------------------------*/
