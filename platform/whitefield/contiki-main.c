@@ -32,13 +32,12 @@ uint16_t gNodeID=0;
 #endif /* !NETSTACK_CONF_WITH_IPV6 */
 extern void queuebuf_init(void);
 /*---------------------------------------------------------------------------*/
-static void set_rime_addr(uint16_t nodeid)
+static void set_rime_addr(void)
 {
 	linkaddr_t addr;
-	char *ptr=(char *)&nodeid;
+	char *ptr=(char *)&gNodeID;
 
-	gNodeID=nodeid;
-	INFO("Using node id=%d\n", nodeid);
+	INFO("Using node id=%d\n", gNodeID);
 
 	memset(&addr, 0, sizeof(linkaddr_t));
 	serial_id[6] = ptr[1];
@@ -78,7 +77,9 @@ int main(int argc, char **argv)
 		ERROR("Incomplete argv set\n");
 		return 1;
 	}
+	gNodeID=atoi(argv[1]);
 
+	random_init(gNodeID);
 	process_init();
 	process_start(&etimer_process, NULL);
 	ctimer_init();
@@ -88,7 +89,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	set_rime_addr(atoi(argv[1]));
+	set_rime_addr();
 
 	netstack_init();
 	printf("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);

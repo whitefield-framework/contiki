@@ -3,6 +3,7 @@
 #include "net/ip/tcpip.h"
 #include "net/packetbuf.h"
 #include "net/netstack.h"
+#include "lib/random.h"
 
 #define	DEBUG 1
 #define	DEBUG_PRINT 1
