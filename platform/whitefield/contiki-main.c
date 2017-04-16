@@ -19,12 +19,14 @@
 #include "contiki.h"
 #include "net/netstack.h"
 #include "net/ip/uip.h"
+#include "commline/commline.h"
 
 #if NETSTACK_CONF_WITH_IPV6
 #include "net/ipv6/uip-ds6.h"
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 
 static uint8_t serial_id[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+uint16_t gNodeID=0;
 #if !NETSTACK_CONF_WITH_IPV6
 #error "Supports only IPV6 based stackline..."
 #endif /* !NETSTACK_CONF_WITH_IPV6 */
@@ -35,6 +37,7 @@ static void set_rime_addr(uint16_t nodeid)
 	linkaddr_t addr;
 	char *ptr=(char *)&nodeid;
 
+	gNodeID=nodeid;
 	INFO("Using node id=%d\n", nodeid);
 
 	memset(&addr, 0, sizeof(linkaddr_t));
@@ -80,6 +83,10 @@ int main(int argc, char **argv)
 	process_start(&etimer_process, NULL);
 	ctimer_init();
 	rtimer_init();
+	if(cl_init(CL_ATTACHQ)!=CL_SUCCESS) {
+		ERROR("commline init failed\n");
+		return 1;
+	}
 
 	set_rime_addr(atoi(argv[1]));
 

@@ -2,9 +2,16 @@ ifndef CONTIKI
   $(error CONTIKI not defined! You must specify where CONTIKI resides!)
 endif
 
+WF_SRC=../../../../src
+
 ifeq ($(HOST_OS),Darwin)
   AROPTS = rc
 endif
+
+WF_DIR=../../../..
+include $(WF_DIR)/config.inc
+CFLAGS+=-I$(WF_DIR)/src
+TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline_$(REL)
 
 CONTIKI_TARGET_DIRS = . dev
 CONTIKI_TARGET_MAIN = ${addprefix $(OBJECTDIR)/,contiki-main.o}
