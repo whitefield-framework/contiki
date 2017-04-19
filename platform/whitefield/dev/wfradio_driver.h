@@ -4,6 +4,7 @@
 #include "contiki.h"
 #include "dev/radio.h"
 
+PROCESS_NAME(wfradio_process);
 extern const struct radio_driver wfradio_driver;
 
 /**

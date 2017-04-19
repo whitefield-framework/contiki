@@ -40,7 +40,7 @@ send_packet(mac_callback_t sent, void *ptr)
 	memcpy(mbuf->buf, packetbuf_hdrptr(), packetbuf_totlen());
 	mbuf->src_id = gNodeID;
 	mbuf->dst_id = lladdr_to_id((uip_lladdr_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-	INFO("send_packet>> src:%x dst:%x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
+	INFO("SL send_packet>> src:%x dst:%x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
 	if(CL_SUCCESS != cl_sendto_q(MTYPE(AIRLINE, 0), mbuf, mbuf->len + sizeof(msg_buf_t))) {
 		ret=MAC_TX_ERR;
 	}
@@ -50,8 +50,7 @@ send_packet(mac_callback_t sent, void *ptr)
 	static void
 packet_input(void)
 {
-	printf("%s called\n", __FUNCTION__);
-	fflush(NULL);
+	INFO("%s called\n", __FUNCTION__);
 	NETSTACK_LLSEC.input();
 }
 /*---------------------------------------------------------------------------*/

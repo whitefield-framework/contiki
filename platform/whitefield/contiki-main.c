@@ -19,7 +19,9 @@
 #include "contiki.h"
 #include "net/netstack.h"
 #include "net/ip/uip.h"
+#include "lib/random.h"
 #include "commline/commline.h"
+#include "dev/wfradio_driver.h"
 
 #if NETSTACK_CONF_WITH_IPV6
 #include "net/ipv6/uip-ds6.h"
@@ -63,6 +65,7 @@ void print_loc_addr(void)
 /*---------------------------------------------------------------------------*/
 int main(int argc, char **argv)
 {
+	int retval, usec;
 #if NETSTACK_CONF_WITH_IPV6
 #if UIP_CONF_IPV6_RPL
 	printf(CONTIKI_VERSION_STRING " started with IPV6, RPL\n");
@@ -98,17 +101,18 @@ int main(int argc, char **argv)
 	memcpy(&uip_lladdr.addr, serial_id, sizeof(uip_lladdr.addr));
 
 	process_start(&tcpip_process, NULL);
+	process_start(&wfradio_process, NULL);
 
 	print_loc_addr();
 
 	autostart_start(autostart_processes);
 
 	while(1) {
-		int retval, usec;
 		retval = process_run();
 		usec = retval ? 1 : 1000;
 		usleep(usec);
 		etimer_request_poll();
+		process_poll(&wfradio_process);
 	}
 
 	return 0;

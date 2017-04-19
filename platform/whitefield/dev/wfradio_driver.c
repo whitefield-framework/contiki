@@ -9,6 +9,7 @@
 
 #include "dev/radio.h"
 #include "wfradio_driver.h"
+#include "commline/commline.h"
 
 
 PROCESS(wfradio_process, "whitefield radio process");
@@ -70,13 +71,26 @@ radio_on(void)
 static int
 radio_off(void)
 {
-  return 1;
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
+extern uint16_t gNodeID;
 static int
-radio_read(void *buf, unsigned short bufsize)
+radio_read(void *inbuf, unsigned short bufsize)
 {
-	printf("radio_read bufsize:%d\n", bufsize);
+	uint8_t buf[sizeof(msg_buf_t)+COMMLINE_MAX_BUF];
+	msg_buf_t *mbuf = (msg_buf_t*) buf;
+	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(buf));
+	if(mbuf->len > 0) {
+			INFO("rcvd packet from AL src:%x dst:%x len:%d\n", 
+				mbuf->src_id, mbuf->dst_id, mbuf->len);
+		if(mbuf->len > bufsize) {
+			ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
+			return 0;
+		}
+		memcpy(inbuf, mbuf->buf, mbuf->len);
+		return mbuf->len;
+	}
 	return 0;
 }
 /*---------------------------------------------------------------------------*/

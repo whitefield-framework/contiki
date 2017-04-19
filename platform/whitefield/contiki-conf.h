@@ -163,10 +163,6 @@ typedef unsigned long clock_time_t;
 /* Not part of C99 but actually present */
 int strcasecmp(const char*, const char*);
 
-#define	ERROR(...) printf(__VA_ARGS__); fflush(NULL);
-#define	WARN(...) printf(__VA_ARGS__); fflush(NULL);
-#define	INFO(...) printf(__VA_ARGS__); fflush(NULL);
-
 /* include the project config */
 /* PROJECT_CONF_H might be defined in the project Makefile */
 #ifdef PROJECT_CONF_H
