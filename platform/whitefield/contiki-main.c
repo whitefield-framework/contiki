@@ -15,8 +15,12 @@
 #include <unistd.h>
 #include <sys/select.h>
 #include <errno.h>
-
 #include "contiki.h"
+
+#include "dev/button-sensor.h"
+#include "dev/pir-sensor.h"
+#include "dev/vib-sensor.h"
+
 #include "net/netstack.h"
 #include "net/ip/uip.h"
 #include "lib/random.h"
@@ -27,6 +31,7 @@
 #include "net/ipv6/uip-ds6.h"
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 
+SENSORS(&pir_sensor, &vib_sensor, &button_sensor);
 static uint8_t serial_id[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
 uint16_t gNodeID=0;
 #if !NETSTACK_CONF_WITH_IPV6
@@ -34,17 +39,13 @@ uint16_t gNodeID=0;
 #endif /* !NETSTACK_CONF_WITH_IPV6 */
 extern void queuebuf_init(void);
 /*---------------------------------------------------------------------------*/
-static void set_rime_addr(void)
+void id2addr8B(const uint16_t id, uint8_t *addr)
 {
-	linkaddr_t addr;
-	char *ptr=(char *)&gNodeID;
+	char *ptr=(char *)&id;
 
-	INFO("Using node id=%d\n", gNodeID);
-
-	memset(&addr, 0, sizeof(linkaddr_t));
-	serial_id[6] = ptr[1];
-	serial_id[7] = ptr[0];
-	memcpy(addr.u8, serial_id, sizeof(addr.u8));
+	memcpy(addr, serial_id, 8);
+	addr[6] = ptr[1];
+	addr[7] = ptr[0];
 }
 
 void print_loc_addr(void)
@@ -92,13 +93,14 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	set_rime_addr();
+	INFO("Using node id=%d\n", gNodeID);
+	id2addr8B(gNodeID, uip_lladdr.addr);
 
 	netstack_init();
 	printf("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);
 
 	queuebuf_init();
-	memcpy(&uip_lladdr.addr, serial_id, sizeof(uip_lladdr.addr));
+//	memcpy(&uip_lladdr.addr, serial_id, sizeof(uip_lladdr.addr));
 
 	process_start(&tcpip_process, NULL);
 	process_start(&wfradio_process, NULL);
@@ -118,3 +120,16 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+/*---------------------------------------------------------------------------*/
+void
+log_message(char *m1, char *m2)
+{
+  fprintf(stdout, "%s%s\n", m1, m2);
+}
+/*---------------------------------------------------------------------------*/
+void
+uip_log(char *m)
+{
+  fprintf(stdout, "%s\n", m);
+}
+/*---------------------------------------------------------------------------*/

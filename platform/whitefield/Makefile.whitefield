@@ -2,21 +2,24 @@ ifndef CONTIKI
   $(error CONTIKI not defined! You must specify where CONTIKI resides!)
 endif
 
-WF_SRC=../../../../src
-
 ifeq ($(HOST_OS),Darwin)
   AROPTS = rc
 endif
 
 WF_DIR=../../../..
+ifeq ($(wildcard $(WF_DIR)/src/.*),)
+WF_DIR=../../../../..
+endif
+
 include $(WF_DIR)/config.inc
 CFLAGS+=-I$(WF_DIR)/src
-TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline_$(REL)
+TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline
 
 CONTIKI_TARGET_DIRS = . dev
 CONTIKI_TARGET_MAIN = ${addprefix $(OBJECTDIR)/,contiki-main.o}
 
-CONTIKI_TARGET_SOURCEFILES = contiki-main.c clock.c wfmac_driver.c wfradio_driver.c
+CONTIKI_TARGET_SOURCEFILES = contiki-main.c clock.c wfmac_driver.c wfradio_driver.c \
+                button-sensor.c pir-sensor.c vib-sensor.c sensors.c
 
 CONTIKI_SOURCEFILES += $(CONTIKI_TARGET_SOURCEFILES)
 

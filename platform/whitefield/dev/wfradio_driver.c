@@ -73,178 +73,173 @@ radio_off(void)
 {
   return 0;
 }
+
+extern void id2addr8B(const uint16_t id, uint8_t *addr);
+
 /*---------------------------------------------------------------------------*/
 extern uint16_t gNodeID;
-static int
-radio_read(void *inbuf, unsigned short bufsize)
+static int radio_read(void *inbuf, unsigned short bufsize)
 {
+	linkaddr_t addr;
 	uint8_t buf[sizeof(msg_buf_t)+COMMLINE_MAX_BUF];
 	msg_buf_t *mbuf = (msg_buf_t*) buf;
 	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(buf));
-	if(mbuf->len > 0) {
-			INFO("rcvd packet from AL src:%x dst:%x len:%d\n", 
-				mbuf->src_id, mbuf->dst_id, mbuf->len);
-		if(mbuf->len > bufsize) {
-			ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
-			return 0;
-		}
-		memcpy(inbuf, mbuf->buf, mbuf->len);
-		return mbuf->len;
+	if(mbuf->len == 0) {
+		return 0;
 	}
-	return 0;
+	INFO("src:%x dst:%x len:%d\n", 
+		mbuf->src_id, mbuf->dst_id, mbuf->len);
+	if(mbuf->len > bufsize) {
+		ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
+		return 0;
+	}
+	memcpy(inbuf, mbuf->buf, mbuf->len);
+	id2addr8B(mbuf->src_id, addr.u8);
+	packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &addr);
+	id2addr8B(mbuf->dst_id, addr.u8);
+	packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &addr);
+	return mbuf->len;
 }
 /*---------------------------------------------------------------------------*/
-static int
-channel_clear(void)
+static int channel_clear(void)
 {
-  return 1;
+	return 1;
 }
 /*---------------------------------------------------------------------------*/
-static int
-radio_send(const void *payload, unsigned short payload_len)
+static int radio_send(const void *payload, unsigned short payload_len)
 {
-	printf("radio_send bufsize:%d\n", payload_len);
 	return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/
-static int
-prepare_packet(const void *data, unsigned short len)
+static int prepare_packet(const void *data, unsigned short len)
 {
-  return len;
+	return len;
 }
 /*---------------------------------------------------------------------------*/
-static int
-transmit_packet(unsigned short len)
+static int transmit_packet(unsigned short len)
 {
-  int ret = RADIO_TX_ERR;
-  return ret;
+	int ret = RADIO_TX_ERR;
+	return ret;
 }
 /*---------------------------------------------------------------------------*/
-static int
-receiving_packet(void)
+static int receiving_packet(void)
 {
-  return 0;
+	return 0;
 }
 /*---------------------------------------------------------------------------*/
-static int
-pending_packet(void)
+static int pending_packet(void)
 {
-  return 1;
+	return 1;
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(wfradio_process, ev, data)
 {
-  int len;
+	int len;
 
-  PROCESS_BEGIN();
+	PROCESS_BEGIN();
 
-  while(1) {
-    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    packetbuf_clear();
-    len = radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
-    if(len > 0) {
-      packetbuf_set_datalen(len);
-      NETSTACK_RDC.input();
-    }
-  }
+	while(1) {
+		PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
+		packetbuf_clear();
+		len = radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
+		if(len > 0) {
+			packetbuf_set_datalen(len);
+			NETSTACK_MAC.input();
+		}
+	}
 
-  PROCESS_END();
+	PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
-static int
-init(void)
+static int init(void)
 {
-  process_start(&wfradio_process, NULL);
-  return 1;
+	process_start(&wfradio_process, NULL);
+	return 1;
 }
 /*---------------------------------------------------------------------------*/
-static radio_result_t
-get_value(radio_param_t param, radio_value_t *value)
+static radio_result_t get_value(radio_param_t param, radio_value_t *value)
 {
-  switch(param) {
-  case RADIO_PARAM_RX_MODE:
-    *value = 0;
-    return RADIO_RESULT_OK;
-  case RADIO_PARAM_TX_MODE:
-    *value = 0;
-    return RADIO_RESULT_OK;
-  case RADIO_PARAM_LAST_RSSI:
-    return RADIO_RESULT_OK;
-  case RADIO_PARAM_LAST_LINK_QUALITY:
-    return RADIO_RESULT_OK;
-  default:
-    return RADIO_RESULT_NOT_SUPPORTED;
-  }
+	switch(param) {
+		case RADIO_PARAM_RX_MODE:
+			*value = 0;
+			return RADIO_RESULT_OK;
+		case RADIO_PARAM_TX_MODE:
+			*value = 0;
+			return RADIO_RESULT_OK;
+		case RADIO_PARAM_LAST_RSSI:
+			return RADIO_RESULT_OK;
+		case RADIO_PARAM_LAST_LINK_QUALITY:
+			return RADIO_RESULT_OK;
+		default:
+			return RADIO_RESULT_NOT_SUPPORTED;
+	}
 }
 /*---------------------------------------------------------------------------*/
-static radio_result_t
-set_value(radio_param_t param, radio_value_t value)
+static radio_result_t set_value(radio_param_t param, radio_value_t value)
 {
-  switch(param) {
-  case RADIO_PARAM_RX_MODE:
-    if(value & ~(RADIO_RX_MODE_ADDRESS_FILTER |
-        RADIO_RX_MODE_AUTOACK | RADIO_RX_MODE_POLL_MODE)) {
-      return RADIO_RESULT_INVALID_VALUE;
-    }
+	switch(param) {
+		case RADIO_PARAM_RX_MODE:
+			if(value & ~(RADIO_RX_MODE_ADDRESS_FILTER |
+						RADIO_RX_MODE_AUTOACK | RADIO_RX_MODE_POLL_MODE)) {
+				return RADIO_RESULT_INVALID_VALUE;
+			}
 
-    /* Only disabling is acceptable for RADIO_RX_MODE_ADDRESS_FILTER */
-    if ((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0) {
-      return RADIO_RESULT_NOT_SUPPORTED;
-    }
-    set_frame_filtering((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0);
+			/* Only disabling is acceptable for RADIO_RX_MODE_ADDRESS_FILTER */
+			if ((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0) {
+				return RADIO_RESULT_NOT_SUPPORTED;
+			}
+			set_frame_filtering((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0);
 
-    /* Only disabling is acceptable for RADIO_RX_MODE_AUTOACK */
-    if ((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0) {
-      return RADIO_RESULT_NOT_SUPPORTED;
-    }
-    set_auto_ack((value & RADIO_RX_MODE_AUTOACK) != 0);
+			/* Only disabling is acceptable for RADIO_RX_MODE_AUTOACK */
+			if ((value & RADIO_RX_MODE_ADDRESS_FILTER) != 0) {
+				return RADIO_RESULT_NOT_SUPPORTED;
+			}
+			set_auto_ack((value & RADIO_RX_MODE_AUTOACK) != 0);
 
-    set_poll_mode((value & RADIO_RX_MODE_POLL_MODE) != 0);
-    return RADIO_RESULT_OK;
-  case RADIO_PARAM_TX_MODE:
-    if(value & ~(RADIO_TX_MODE_SEND_ON_CCA)) {
-      return RADIO_RESULT_INVALID_VALUE;
-    }
-    set_send_on_cca((value & RADIO_TX_MODE_SEND_ON_CCA) != 0);
-    return RADIO_RESULT_OK;
-  case RADIO_PARAM_CHANNEL:
-    if(value < 11 || value > 26) {
-      return RADIO_RESULT_INVALID_VALUE;
-    }
-    radio_set_channel(value);
-    return RADIO_RESULT_OK;
-  default:
-    return RADIO_RESULT_NOT_SUPPORTED;
-  }
+			set_poll_mode((value & RADIO_RX_MODE_POLL_MODE) != 0);
+			return RADIO_RESULT_OK;
+		case RADIO_PARAM_TX_MODE:
+			if(value & ~(RADIO_TX_MODE_SEND_ON_CCA)) {
+				return RADIO_RESULT_INVALID_VALUE;
+			}
+			set_send_on_cca((value & RADIO_TX_MODE_SEND_ON_CCA) != 0);
+			return RADIO_RESULT_OK;
+		case RADIO_PARAM_CHANNEL:
+			if(value < 11 || value > 26) {
+				return RADIO_RESULT_INVALID_VALUE;
+			}
+			radio_set_channel(value);
+			return RADIO_RESULT_OK;
+		default:
+			return RADIO_RESULT_NOT_SUPPORTED;
+	}
 }
 /*---------------------------------------------------------------------------*/
-static radio_result_t
-get_object(radio_param_t param, void *dest, size_t size)
+static radio_result_t get_object(radio_param_t param, void *dest, size_t size)
 {
-  return RADIO_RESULT_NOT_SUPPORTED;
+	return RADIO_RESULT_NOT_SUPPORTED;
 }
 /*---------------------------------------------------------------------------*/
-static radio_result_t
-set_object(radio_param_t param, const void *src, size_t size)
+static radio_result_t set_object(radio_param_t param, const void *src, size_t size)
 {
-  return RADIO_RESULT_NOT_SUPPORTED;
+	return RADIO_RESULT_NOT_SUPPORTED;
 }
 /*---------------------------------------------------------------------------*/
 const struct radio_driver wfradio_driver =
 {
-    init,
-    prepare_packet,
-    transmit_packet,
-    radio_send,
-    radio_read,
-    channel_clear,
-    receiving_packet,
-    pending_packet,
-    radio_on,
-    radio_off,
-    get_value,
-    set_value,
-    get_object,
-    set_object
+	init,
+	prepare_packet,
+	transmit_packet,
+	radio_send,
+	radio_read,
+	channel_clear,
+	receiving_packet,
+	pending_packet,
+	radio_on,
+	radio_off,
+	get_value,
+	set_value,
+	get_object,
+	set_object
 };
 /*---------------------------------------------------------------------------*/

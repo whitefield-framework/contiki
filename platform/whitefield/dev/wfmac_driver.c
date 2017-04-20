@@ -29,8 +29,7 @@ uint16_t lladdr_to_id(uip_lladdr_t *ll)
 }
 
 /*---------------------------------------------------------------------------*/
-static void
-send_packet(mac_callback_t sent, void *ptr)
+static void send_packet(mac_callback_t sent, void *ptr)
 {
 	int ret=MAC_TX_OK;
 	uint8_t buf[sizeof(msg_buf_t) + COMMLINE_MAX_BUF];
@@ -40,40 +39,34 @@ send_packet(mac_callback_t sent, void *ptr)
 	memcpy(mbuf->buf, packetbuf_hdrptr(), packetbuf_totlen());
 	mbuf->src_id = gNodeID;
 	mbuf->dst_id = lladdr_to_id((uip_lladdr_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-	INFO("SL send_packet>> src:%x dst:%x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
+	INFO("src:%0x dst:%0x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
 	if(CL_SUCCESS != cl_sendto_q(MTYPE(AIRLINE, 0), mbuf, mbuf->len + sizeof(msg_buf_t))) {
 		ret=MAC_TX_ERR;
 	}
 	mac_call_sent_callback(sent, ptr, ret, 1);
 }
 /*---------------------------------------------------------------------------*/
-	static void
-packet_input(void)
+static void packet_input(void)
 {
-	INFO("%s called\n", __FUNCTION__);
-	NETSTACK_LLSEC.input();
+	NETSTACK_NETWORK.input();
 }
 /*---------------------------------------------------------------------------*/
-	static int
-on(void)
-{
-	return NETSTACK_RDC.on();
-}
-/*---------------------------------------------------------------------------*/
-	static int
-off(int keep_radio_on)
-{
-	return NETSTACK_RDC.off(keep_radio_on);
-}
-/*---------------------------------------------------------------------------*/
-	static unsigned short
-channel_check_interval(void)
+static int on(void)
 {
 	return 0;
 }
 /*---------------------------------------------------------------------------*/
-	static void
-init(void)
+static int off(int keep_radio_on)
+{
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
+static unsigned short channel_check_interval(void)
+{
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
+static void init(void)
 {
 }
 /*---------------------------------------------------------------------------*/
@@ -87,3 +80,4 @@ const struct mac_driver wfmac_driver = {
 	channel_check_interval,
 };
 /*---------------------------------------------------------------------------*/
+

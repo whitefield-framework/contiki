@@ -41,7 +41,6 @@
 #define CC_CONF_REGISTER_ARGS          1
 #define CC_CONF_FUNCTION_POINTER_ARGS  1
 #define CC_CONF_VA_ARGS                1
-/*#define CC_CONF_INLINE                 inline*/
 
 #ifndef EEPROM_CONF_SIZE
 #define EEPROM_CONF_SIZE				1024
@@ -58,19 +57,14 @@ typedef  int32_t s32_t;
 
 typedef unsigned short uip_stats_t;
 
-#define UIP_CONF_UDP             1
 #define UIP_CONF_MAX_CONNECTIONS 40
 #define UIP_CONF_MAX_LISTENPORTS 40
-#define UIP_CONF_BUFFER_SIZE     420
 #define UIP_CONF_BYTE_ORDER      UIP_LITTLE_ENDIAN
-#define UIP_CONF_TCP       1
+#ifndef	UIP_CONF_TCP
+#define UIP_CONF_TCP       0
 #define UIP_CONF_TCP_SPLIT       0
-#define UIP_CONF_LOGGING         0
-#define UIP_CONF_UDP_CHECKSUMS   1
-
-#ifndef NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE
-#define NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE 8
-#endif /* NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE */
+#define UIP_CONF_TCP_MSS         48
+#endif
 
 #if NETSTACK_CONF_WITH_IPV6
 
@@ -80,21 +74,11 @@ typedef unsigned short uip_stats_t;
 #define NETSTACK_CONF_MAC     wfmac_driver
 #endif /* NETSTACK_CONF_MAC */
 
-#ifndef NETSTACK_CONF_RDC
-#define NETSTACK_CONF_RDC     nullrdc_driver
-#endif /* NETSTACK_CONF_RDC */
-
 #ifndef NETSTACK_CONF_RADIO
 #define NETSTACK_CONF_RADIO   wfradio_driver
 #endif /* NETSTACK_CONF_RADIO */
 
-#ifndef NETSTACK_CONF_FRAMER
-#define NETSTACK_CONF_FRAMER  framer_802154
-#endif /* NETSTACK_CONF_FRAMER */
-
 #define NETSTACK_CONF_NETWORK sicslowpan_driver
-
-#define NETSTACK_CONF_LINUXRADIO_DEV "wpan0"
 
 #define UIP_CONF_ROUTER                 1
 
@@ -128,7 +112,6 @@ typedef unsigned short uip_stats_t;
 #define UIP_CONF_BUFFER_SIZE		240
 #endif
 
-
 #define UIP_CONF_LLH_LEN                0
 #define UIP_CONF_LL_802154              1
 
@@ -138,7 +121,6 @@ typedef unsigned short uip_stats_t;
 #ifndef UIP_CONF_RECEIVE_WINDOW
 #define UIP_CONF_RECEIVE_WINDOW  48
 #endif
-#define UIP_CONF_TCP_MSS         48
 #define UIP_CONF_UDP_CONNS       12
 #define UIP_CONF_FWCACHE_SIZE    30
 #define UIP_CONF_BROADCAST       1
@@ -156,9 +138,6 @@ typedef unsigned long clock_time_t;
 #define CLOCK_CONF_SECOND 1000
 
 #define LOG_CONF_ENABLED 1
-
-#define PROGRAM_HANDLER_CONF_MAX_NUMDSCS 10
-#define PROGRAM_HANDLER_CONF_QUIT_MENU   1
 
 /* Not part of C99 but actually present */
 int strcasecmp(const char*, const char*);
