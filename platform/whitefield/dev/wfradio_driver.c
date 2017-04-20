@@ -81,14 +81,14 @@ extern uint16_t gNodeID;
 static int radio_read(void *inbuf, unsigned short bufsize)
 {
 	linkaddr_t addr;
-	uint8_t buf[sizeof(msg_buf_t)+COMMLINE_MAX_BUF];
-	msg_buf_t *mbuf = (msg_buf_t*) buf;
-	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(buf));
+	DEFINE_MBUF(mbuf);
+
+	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(mbuf_buf));
 	if(mbuf->len == 0) {
 		return 0;
 	}
-	INFO("src:%x dst:%x len:%d\n", 
-		mbuf->src_id, mbuf->dst_id, mbuf->len);
+	INFO("src:%x dst:%x len:%d flags:%x\n", 
+		mbuf->src_id, mbuf->dst_id, mbuf->len, mbuf->flags);
 	if(mbuf->len > bufsize) {
 		ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
 		return 0;
@@ -98,6 +98,8 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 	packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &addr);
 	id2addr8B(mbuf->dst_id, addr.u8);
 	packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &addr);
+	packetbuf_set_attr(PACKETBUF_ATTR_RSSI, 0);
+	packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, mbuf->lqi);
 	return mbuf->len;
 }
 /*---------------------------------------------------------------------------*/

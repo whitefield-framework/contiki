@@ -31,9 +31,8 @@ uint16_t lladdr_to_id(uip_lladdr_t *ll)
 /*---------------------------------------------------------------------------*/
 static void send_packet(mac_callback_t sent, void *ptr)
 {
-	int ret=MAC_TX_OK;
-	uint8_t buf[sizeof(msg_buf_t) + COMMLINE_MAX_BUF];
-	msg_buf_t *mbuf = (msg_buf_t *)buf;
+//	int ret=MAC_TX_OK;
+	DEFINE_MBUF(mbuf);
 
 	mbuf->len = packetbuf_totlen();
 	memcpy(mbuf->buf, packetbuf_hdrptr(), packetbuf_totlen());
@@ -41,9 +40,9 @@ static void send_packet(mac_callback_t sent, void *ptr)
 	mbuf->dst_id = lladdr_to_id((uip_lladdr_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
 	INFO("src:%0x dst:%0x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
 	if(CL_SUCCESS != cl_sendto_q(MTYPE(AIRLINE, 0), mbuf, mbuf->len + sizeof(msg_buf_t))) {
-		ret=MAC_TX_ERR;
+//		ret=MAC_TX_ERR;
 	}
-	mac_call_sent_callback(sent, ptr, ret, 1);
+//	mac_call_sent_callback(sent, ptr, ret, 1);
 }
 /*---------------------------------------------------------------------------*/
 static void packet_input(void)
