@@ -76,6 +76,7 @@ radio_off(void)
 
 extern void id2addr8B(const uint16_t id, uint8_t *addr);
 
+extern void mac_handle_ack(msg_buf_t *mbuf);
 /*---------------------------------------------------------------------------*/
 extern uint16_t gNodeID;
 static int radio_read(void *inbuf, unsigned short bufsize)
@@ -93,13 +94,17 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
 		return 0;
 	}
+	if(mbuf->flags & MBUF_IS_ACK) {
+		mac_handle_ack(mbuf);
+		return 0;
+	}
 	memcpy(inbuf, mbuf->buf, mbuf->len);
 	id2addr8B(mbuf->src_id, addr.u8);
 	packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &addr);
 	id2addr8B(mbuf->dst_id, addr.u8);
 	packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &addr);
-	packetbuf_set_attr(PACKETBUF_ATTR_RSSI, 0);
-	packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, mbuf->lqi);
+	packetbuf_set_attr(PACKETBUF_ATTR_RSSI, mbuf->sig.rssi);
+	packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, mbuf->sig.lqi);
 	return mbuf->len;
 }
 /*---------------------------------------------------------------------------*/
