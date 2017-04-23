@@ -19,7 +19,7 @@ CONTIKI_TARGET_DIRS = . dev
 CONTIKI_TARGET_MAIN = ${addprefix $(OBJECTDIR)/,contiki-main.o}
 
 CONTIKI_TARGET_SOURCEFILES = contiki-main.c clock.c wfmac_driver.c wfradio_driver.c \
-                button-sensor.c pir-sensor.c vib-sensor.c sensors.c
+                button-sensor.c pir-sensor.c vib-sensor.c sensors.c command.c
 
 CONTIKI_SOURCEFILES += $(CONTIKI_TARGET_SOURCEFILES)
 

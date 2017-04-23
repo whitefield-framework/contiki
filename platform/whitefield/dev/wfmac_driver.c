@@ -35,7 +35,7 @@ static void send_packet(mac_callback_t sent, void *ptr)
 		g_mac_sent_cb = sent;
 	} else if(g_mac_sent_cb && sent != g_mac_sent_cb) {
 		ERROR("****** Didnt expect different MAC SENT CB ********\n");
-		/* If this condn is hit means some additional code is required
+		/*RJ: If this condn is hit means some additional code is required
 		to manage the sent/ptr values ... have to maintain a queue and
 		push the sent/ptr in every unicast case, so that when ACK is 
 		rcvd, the sent/ptr are appropriately retrieved from queue */
