@@ -75,7 +75,7 @@ radio_off(void)
 extern void id2addr8B(const uint16_t id, uint8_t *addr);
 
 extern void mac_handle_ack(msg_buf_t *mbuf);
-extern void handle_cmd(msg_buf_t *mbuf);
+extern void sl_handle_cmd(msg_buf_t *mbuf);
 /*---------------------------------------------------------------------------*/
 extern uint16_t gNodeID;
 static int radio_read(void *inbuf, unsigned short bufsize)
@@ -93,8 +93,10 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
 		return 0;
 	}
-	if(mbuf->flags & MBUF_IS_ACK) {
-		handle_cmd(mbuf);
+	if(mbuf->flags & MBUF_IS_CMD) {
+		sl_handle_cmd(mbuf);
+		cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
+		return 0;
 	}
 	if(mbuf->flags & MBUF_IS_ACK) {
 		mac_handle_ack(mbuf);
