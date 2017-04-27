@@ -146,6 +146,10 @@ int strcasecmp(const char*, const char*);
 #define RPL_CONF_STATS 1
 #endif
 
+#ifndef	UIP_CONF_STATISTICS
+#define	UIP_CONF_STATISTICS 1
+#endif
+
 /* include the project config */
 /* PROJECT_CONF_H might be defined in the project Makefile */
 #ifdef PROJECT_CONF_H
