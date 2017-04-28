@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/select.h>
 #include <errno.h>
 #include "contiki.h"
@@ -63,6 +64,19 @@ void print_loc_addr(void)
 
 	printf("%02x%02x\n", lladdr->ipaddr.u8[14], lladdr->ipaddr.u8[15]);
 }
+
+pthread_mutex_t gMutex=PTHREAD_MUTEX_INITIALIZER;
+
+void LOCK(void)
+{
+	pthread_mutex_lock(&gMutex);
+}
+
+void UNLOCK(void)
+{
+	pthread_mutex_unlock(&gMutex);
+}
+
 /*---------------------------------------------------------------------------*/
 int main(int argc, char **argv)
 {
@@ -113,8 +127,10 @@ int main(int argc, char **argv)
 		retval = process_run();
 		usec = retval ? 1 : 1000;
 		usleep(usec);
+		LOCK();
 		etimer_request_poll();
 		process_poll(&wfradio_process);
+		UNLOCK();
 	}
 
 	return 0;
