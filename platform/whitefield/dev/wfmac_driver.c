@@ -28,7 +28,6 @@ mac_callback_t g_mac_sent_cb;
 /*---------------------------------------------------------------------------*/
 static void send_packet(mac_callback_t sent, void *ptr)
 {
-//	int ret=MAC_TX_OK;
 	DEFINE_MBUF(mbuf);
 
 	if(!g_mac_sent_cb && sent) {
@@ -48,9 +47,8 @@ static void send_packet(mac_callback_t sent, void *ptr)
 	mbuf->dst_id = lladdr_to_id((uip_lladdr_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
 	INFO("src:%0x dst:%0x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
 	if(CL_SUCCESS != cl_sendto_q(MTYPE(AIRLINE, CL_MGR_ID), mbuf, mbuf->len + sizeof(msg_buf_t))) {
-//		ret=MAC_TX_ERR;
+		mac_call_sent_callback(sent, ptr, MAC_TX_ERR_FATAL, 3);
 	}
-//	mac_call_sent_callback(sent, ptr, ret, 1);
 }
 
 int get_tx_status(uint8_t wf_status, char *statstr, size_t len)
@@ -82,7 +80,7 @@ void mac_handle_ack(msg_buf_t *mbuf)
 		return;
 	}
 	status = get_tx_status(mbuf->ack.status, statstr, sizeof(statstr));
-	INFO("GOT AN ACK status:%s retries:%d\n", statstr, mbuf->ack.retries);
+	INFO("ACK status:%s retries:%d\n", statstr, mbuf->ack.retries);
 	mac_call_sent_callback(g_mac_sent_cb, NULL, status, mbuf->ack.retries);
 }
 
