@@ -111,7 +111,8 @@ int main(int argc, char **argv)
 	id2addr8B(gNodeID, uip_lladdr.addr);
 
 	netstack_init();
-	printf("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);
+	INFO("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);
+	INFO("route_table_max_sz=%d,nbr_table_max_sz=%d\n", UIP_DS6_ROUTE_NB, NBR_TABLE_MAX_NEIGHBORS);
 
 	queuebuf_init();
 //	memcpy(&uip_lladdr.addr, serial_id, sizeof(uip_lladdr.addr));

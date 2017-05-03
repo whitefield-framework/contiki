@@ -181,5 +181,10 @@ int cmd_nd6_stats(uint16_t id, char *buf, int buflen)
 	return n;
 }
 
+int cmd_config_info(uint16_t id, char *buf, int buflen)
+{
+	return snprintf(buf, buflen, "route_table_max_sz=%d,nbr_table_max_sz=%d", UIP_DS6_ROUTE_NB, NBR_TABLE_MAX_NEIGHBORS);
+}
+
 #include "stackline/sl_command.c"
 
