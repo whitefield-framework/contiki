@@ -14,6 +14,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/select.h>
 #include <errno.h>
 #include "contiki.h"
@@ -39,6 +40,13 @@ uint16_t gNodeID=0;
 #error "Supports only IPV6 based stackline..."
 #endif /* !NETSTACK_CONF_WITH_IPV6 */
 extern void queuebuf_init(void);
+
+void sig_handler(int signum)
+{
+	printf("Sayonara... Shot with signal:%d\n", signum);
+	exit(0);
+}
+
 /*---------------------------------------------------------------------------*/
 void id2addr8B(const uint16_t id, uint8_t *addr)
 {
@@ -90,6 +98,9 @@ int main(int argc, char **argv)
 #else
 	printf(CONTIKI_VERSION_STRING " started\n");
 #endif
+	signal(SIGINT, sig_handler);
+	signal(SIGKILL, sig_handler);
+	signal(SIGTERM, sig_handler);
 
 	if(argc < 2) {
 		ERROR("Incomplete argv set\n");
