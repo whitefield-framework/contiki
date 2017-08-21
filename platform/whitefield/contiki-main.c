@@ -34,7 +34,6 @@
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 
 SENSORS(&pir_sensor, &vib_sensor, &button_sensor);
-static uint8_t serial_id[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
 uint16_t gNodeID=0;
 #if !NETSTACK_CONF_WITH_IPV6
 #error "Supports only IPV6 based stackline..."
@@ -45,16 +44,6 @@ void sig_handler(int signum)
 {
 	printf("Sayonara... Shot with signal:%d\n", signum);
 	exit(0);
-}
-
-/*---------------------------------------------------------------------------*/
-void id2addr8B(const uint16_t id, uint8_t *addr)
-{
-	char *ptr=(char *)&id;
-
-	memcpy(addr, serial_id, 8);
-	addr[6] = ptr[1];
-	addr[7] = ptr[0];
 }
 
 void print_loc_addr(void)
@@ -119,14 +108,13 @@ int main(int argc, char **argv)
 	}
 
 	INFO("Using node id=%d\n", gNodeID);
-	id2addr8B(gNodeID, uip_lladdr.addr);
+	cl_get_id2longaddr(gNodeID, uip_lladdr.addr, sizeof(uip_lladdr.addr));
 
 	netstack_init();
 	INFO("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);
 	INFO("route_table_max_sz=%d,nbr_table_max_sz=%d\n", UIP_DS6_ROUTE_NB, NBR_TABLE_MAX_NEIGHBORS);
 
 	queuebuf_init();
-//	memcpy(&uip_lladdr.addr, serial_id, sizeof(uip_lladdr.addr));
 
 	process_start(&tcpip_process, NULL);
 	process_start(&wfradio_process, NULL);

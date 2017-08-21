@@ -72,8 +72,6 @@ radio_off(void)
   return 0;
 }
 
-extern void id2addr8B(const uint16_t id, uint8_t *addr);
-
 extern void mac_handle_ack(msg_buf_t *mbuf);
 extern void sl_handle_cmd(msg_buf_t *mbuf);
 /*---------------------------------------------------------------------------*/
@@ -99,12 +97,12 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		return 0;
 	}
 	memcpy(inbuf, mbuf->buf, mbuf->len);
-	id2addr8B(mbuf->src_id, addr.u8);
+	cl_get_id2longaddr(mbuf->src_id, addr.u8, sizeof(addr.u8));
 	packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &addr);
-	id2addr8B(mbuf->dst_id, addr.u8);
+	cl_get_id2longaddr(mbuf->dst_id, addr.u8, sizeof(addr.u8));
 	packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &addr);
-	packetbuf_set_attr(PACKETBUF_ATTR_RSSI, mbuf->sig.rssi);
-	packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, mbuf->sig.lqi);
+	packetbuf_set_attr(PACKETBUF_ATTR_RSSI, mbuf->info.sig.rssi);
+	packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, mbuf->info.sig.lqi);
 	if(mbuf->flags & MBUF_IS_ACK) {
 		mac_handle_ack(mbuf);
 		return 0;
