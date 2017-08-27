@@ -13,7 +13,7 @@ endif
 
 include $(WF_DIR)/config.inc
 CFLAGS+=-I$(WF_DIR)/src
-TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline
+TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline -ldl
 
 CONTIKI_TARGET_DIRS = . dev
 CONTIKI_TARGET_MAIN = ${addprefix $(OBJECTDIR)/,contiki-main.o}

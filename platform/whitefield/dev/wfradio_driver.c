@@ -81,7 +81,7 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 	linkaddr_t addr;
 	DEFINE_MBUF(mbuf);
 
-	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(mbuf_buf));
+	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
 	if(mbuf->len == 0) {
 		return 0;
 	}
@@ -92,6 +92,16 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		return 0;
 	}
 	if(mbuf->flags & MBUF_IS_CMD) {
+		//Hack Alert!! Notice that the foll condn will never be true
+		//This condition had to be added so that cmd_* function are linked in the 
+		//binary. Linker decides that cmd_* functions are never called from 
+		//any other place and optimizes out! But I need these functions to be 
+		//loaded dynamically using dlsym(). Using this check i sort of fool linker 
+		//into believing that the function is called, but the wrapping cond will 
+		//never be true.
+		if(mbuf->len == 0xdead && mbuf->len == 0xc0de) {
+			cmd_rtsize(0xbabe, NULL, 0xcafe);
+		}
 		sl_handle_cmd(mbuf);
 		cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
 		return 0;

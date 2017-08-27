@@ -10,8 +10,8 @@
 #include "net/ip/uip.h"
 #include "net/ipv6/uip-ds6-route.h"
 
-extern void LOCK(void);
-extern void UNLOCK(void);
+//extern void LOCK(void);
+//extern void UNLOCK(void);
 
 int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 {
@@ -46,12 +46,12 @@ int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 }
 
-int cmd_def_route(uint16_t id, char *buf, int buflen)
+__attribute__ ((used)) int __attribute__ ((used)) cmd_def_route(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+//	LOCK();
 	n = uip_ipaddr_to_str(uip_ds6_defrt_choose(), buf, buflen);
-	UNLOCK();
+//	UNLOCK();
 	return n;
 }
 
@@ -81,32 +81,32 @@ int get_route_list(char *buf, int buflen)
 int cmd_rtsize(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "%d", uip_ds6_route_num_routes());
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
 int cmd_route_table(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = get_route_list(buf, buflen);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
 int cmd_rpl_stats(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "mem_ovrflw=%d,loc_rep=%d,glo_rep=%d,"
 			"malformed_msgs=%d,resets=%d,prnt_sw=%d,"
 			"fwd_err=%d,loop_err=%d,loop_warn=%d,root_rep=%d",
 			rpl_stats.mem_overflows, rpl_stats.local_repairs, rpl_stats.global_repairs,
 			rpl_stats.malformed_msgs, rpl_stats.resets, rpl_stats.parent_switch,
 			rpl_stats.forward_errors, rpl_stats.loop_errors, rpl_stats.loop_warnings, rpl_stats.root_repairs);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
@@ -118,25 +118,25 @@ int cmd_node_osname(uint16_t id, char *buf, int buflen)
 int cmd_ipv6_stats(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "ipv6 rcv=%d,sent=%d,fwded=%d,drop=%d,"
 			"ver_len_err=%d,"
 			"fragerr=%d,chkerr=%d,protoerr=%d",
 			uip_stat.ip.recv, uip_stat.ip.sent, uip_stat.ip.forwarded, uip_stat.ip.drop, 
 			(uip_stat.ip.vhlerr + uip_stat.ip.hblenerr + uip_stat.ip.lblenerr), 
 			uip_stat.ip.fragerr, uip_stat.ip.chkerr, uip_stat.ip.protoerr);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
 int cmd_icmp_stats(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "icmpv6 rcv=%d,sent=%d,drop=%d,typeerr=%d,chkerr=%d",
 			uip_stat.icmp.recv, uip_stat.icmp.sent, uip_stat.icmp.drop, 
 			uip_stat.icmp.typeerr, uip_stat.icmp.chkerr);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
@@ -144,10 +144,10 @@ int cmd_udp_stats(uint16_t id, char *buf, int buflen)
 {
 #if UIP_CONF_UDP
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "udp rcv=%d,sent=%d,drop=%d,chkerr=%d",
 			uip_stat.udp.recv, uip_stat.udp.sent, uip_stat.udp.drop, uip_stat.udp.chkerr);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 #else
 	return snprintf(buf, buflen, "UDP_NOT_ENABLED");
@@ -158,13 +158,13 @@ int cmd_tcp_stats(uint16_t id, char *buf, int buflen)
 {
 #if UIP_CONF_TCP
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "tcp rcv=%d,sent=%d,drop=%d,chkerr=%d,"
 			"ackerr=%d,rst=%d,rexmit=%d,syndrop=%d,synrst=%d",
 			uip_stat.tcp.recv, uip_stat.tcp.sent, uip_stat.tcp.drop, uip_stat.tcp.chkerr,
 			uip_stat.tcp.ackerr, uip_stat.tcp.rst, uip_stat.tcp.rexmit, 
 			uip_stat.tcp.syndrop, uip_stat.tcp.synrst);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 #else
 	return snprintf(buf, buflen, "TCP_NOT_ENABLED");
@@ -174,10 +174,10 @@ int cmd_tcp_stats(uint16_t id, char *buf, int buflen)
 int cmd_nd6_stats(uint16_t id, char *buf, int buflen)
 {
 	int n;
-	LOCK();
+	//LOCK();
 	n = snprintf(buf, buflen, "nd6 rcv=%d,sent=%d,drop=%d",
 			uip_stat.nd6.recv, uip_stat.nd6.sent, uip_stat.nd6.drop);
-	UNLOCK();
+	//UNLOCK();
 	return n;
 }
 
@@ -186,5 +186,5 @@ int cmd_config_info(uint16_t id, char *buf, int buflen)
 	return snprintf(buf, buflen, "route_table_max_sz=%d,nbr_table_max_sz=%d", UIP_DS6_ROUTE_NB, NBR_TABLE_MAX_NEIGHBORS);
 }
 
-#include "stackline/sl_command.c"
+//#include "stackline/sl_command.c"
 
