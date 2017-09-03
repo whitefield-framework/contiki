@@ -89,7 +89,7 @@ typedef unsigned short uip_stats_t;
 #endif /* SICSLOWPAN_CONF_FRAG */
 #define SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS       2
 
-#define UIP_CONF_IPV6_CHECKS     1
+#define UIP_CONF_IPV6_CHECKS     0
 #define UIP_CONF_IPV6_QUEUE_PKT  1
 #define UIP_CONF_IPV6_REASSEMBLY 0
 #define UIP_CONF_NETIF_MAX_ADDRESSES  3
@@ -129,7 +129,6 @@ typedef unsigned short uip_stats_t;
 #define UIP_CONF_UDP_CHECKSUMS   1
 #define UIP_CONF_PINGADDRCONF    0
 #define UIP_CONF_LOGGING         0
-
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 
 #include <ctype.h>
