@@ -78,20 +78,22 @@ extern void sl_handle_cmd(msg_buf_t *mbuf);
 extern uint16_t gNodeID;
 static int radio_read(void *inbuf, unsigned short bufsize)
 {
+	int ret;
 	linkaddr_t addr;
 	DEFINE_MBUF(mbuf);
 
-	cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
+	ret = cl_recvfrom_q(MTYPE(STACKLINE, gNodeID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
 	if(mbuf->len == 0) {
 		return 0;
 	}
-	INFO("src:%x dst:%x len:%d flags:%x\n", 
-		mbuf->src_id, mbuf->dst_id, mbuf->len, mbuf->flags);
+	INFO("RECV ret:%d src:%x dst:%x len:%d flags:%x\n", 
+		ret, mbuf->src_id, mbuf->dst_id, mbuf->len, mbuf->flags);
 	if(mbuf->len > bufsize) {
 		ERROR("How can mbuflen(%d) be greater than bufsize:%d?!\n", mbuf->len, bufsize);
 		return 0;
 	}
 	if(mbuf->flags & MBUF_IS_CMD) {
+#if 1
 		//Hack Alert!! Notice that the foll condn will never be true
 		//This condition had to be added so that cmd_* function are linked in the 
 		//binary. Linker decides that cmd_* functions are never called from 
@@ -100,8 +102,10 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		//into believing that the function is called, but the wrapping cond will 
 		//never be true.
 		if(mbuf->len == 0xdead && mbuf->len == 0xc0de) {
+			extern int cmd_rtsize(uint16_t, char *, int);
 			cmd_rtsize(0xbabe, NULL, 0xcafe);
 		}
+#endif
 		sl_handle_cmd(mbuf);
 		cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
 		return 0;
@@ -117,6 +121,11 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		mac_handle_ack(mbuf);
 		return 0;
 	}
+#if 1
+	static int rcvd_cnt=0;
+	rcvd_cnt++;
+	PRINT_HEX(mbuf->buf, mbuf->len, "rcvd %d, len=%d\n", rcvd_cnt, mbuf->len);
+#endif
 	return mbuf->len;
 }
 /*---------------------------------------------------------------------------*/

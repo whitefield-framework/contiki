@@ -50,11 +50,7 @@ int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 
 int cmd_def_route(uint16_t id, char *buf, int buflen)
 {
-	int n;
-//	LOCK();
-	n = uip_ipaddr_to_str(uip_ds6_defrt_choose(), buf, buflen);
-//	UNLOCK();
-	return n;
+	return uip_ipaddr_to_str(uip_ds6_defrt_choose(), buf, buflen);
 }
 
 int get_route_list(char *buf, int buflen)
@@ -73,7 +69,6 @@ int get_route_list(char *buf, int buflen)
 		}
 		ADD2BUF("{ \"prefix\": \"%s\", \"pref_len\": \"%d\", \"next_hop\": \"%s\" }\n", 
 			ipstr, r->length, nhop);
-//		n += snprintf(buf+n, buflen-n, "%s/%d -- %s\n", ipstr, r->length, nhop); 
 		if(n > buflen-100) {
 			n += snprintf(buf+n, buflen-n, "[TRUNC]");
 			break;
@@ -84,11 +79,7 @@ int get_route_list(char *buf, int buflen)
 
 int cmd_rtsize(uint16_t id, char *buf, int buflen)
 {
-	int n;
-	//LOCK();
-	n = snprintf(buf, buflen, "%d", uip_ds6_route_num_routes());
-	//UNLOCK();
-	return n;
+	return snprintf(buf, buflen, "%d", uip_ds6_route_num_routes());
 }
 
 int cmd_route_table(uint16_t id, char *buf, int buflen)
