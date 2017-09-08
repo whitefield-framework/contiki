@@ -111,6 +111,7 @@ int main(int argc, char **argv)
 
 	INFO("Using node id=%d\n", gNodeID);
 	cl_get_id2longaddr(gNodeID, uip_lladdr.addr, sizeof(uip_lladdr.addr));
+	memcpy(linkaddr_node_addr.u8, uip_lladdr.addr, sizeof(linkaddr_node_addr.u8));
 
 	netstack_init();
 	INFO("MAC %s RDC %s NETWORK %s\n", NETSTACK_MAC.name, NETSTACK_RDC.name, NETSTACK_NETWORK.name);
