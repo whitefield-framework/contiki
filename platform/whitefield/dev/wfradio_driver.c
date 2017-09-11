@@ -121,7 +121,7 @@ static int radio_read(void *inbuf, unsigned short bufsize)
 		mac_handle_ack(mbuf);
 		return 0;
 	}
-#if 1
+#if 0
 	static int rcvd_cnt=0;
 	rcvd_cnt++;
 	PRINT_HEX(mbuf->buf, mbuf->len, "rcvd %d, len=%d\n", rcvd_cnt, mbuf->len);
