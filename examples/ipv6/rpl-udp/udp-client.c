@@ -28,6 +28,8 @@
  */
 
 #include "contiki.h"
+#include <stdlib.h>
+#include <unistd.h>
 #include "lib/random.h"
 #include "sys/ctimer.h"
 #include "net/ip/uip.h"
@@ -48,11 +50,11 @@
 
 #define UDP_EXAMPLE_ID  190
 
-#define DEBUG DEBUG_FULL
+#define DEBUG DEBUG_NONE
 #include "net/ip/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 60
+#define PERIOD 30
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -169,11 +171,23 @@ set_global_address(void)
   uip_ip6addr(&server_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0x0250, 0xc2ff, 0xfea8, 0xcd1a); //redbee-econotag
 #endif
 }
+
+int g_send_interval=SEND_INTERVAL;
+
+void set_send_interval(void)
+{
+	char *ptr = getenv("UDPCLI_SEND_INT");
+	if(!ptr) return;
+	g_send_interval = (int)(atof(ptr)*CLOCK_SECOND);
+	PRINTF("UDPCLI_SEND_INT:[%s] g_send_interval:%d\n", ptr, g_send_interval);
+}
+
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(udp_client_process, ev, data)
 {
+	static uint8_t start_flag=0;
   static struct etimer periodic;
-  static struct ctimer backoff_timer;
+  //static struct ctimer backoff_timer;
 #if WITH_COMPOWER
   static int print = 0;
 #endif
@@ -183,6 +197,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
   PROCESS_PAUSE();
 
   set_global_address();
+	set_send_interval();
 
   PRINTF("UDP client process started nbr:%d routes:%d\n",
          NBR_TABLE_CONF_MAX_NEIGHBORS, UIP_CONF_MAX_ROUTES);
@@ -218,7 +233,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
       str = data;
       if(str[0] == 'r') {
         uip_ds6_route_t *r;
-        uip_ipaddr_t *nexthop;
+        //uip_ipaddr_t *nexthop;
         uip_ds6_defrt_t *defrt;
         uip_ipaddr_t *ipaddr;
         defrt = NULL;
@@ -236,20 +251,26 @@ PROCESS_THREAD(udp_client_process, ev, data)
         for(r = uip_ds6_route_head();
             r != NULL;
             r = uip_ds6_route_next(r)) {
-          nexthop = uip_ds6_route_nexthop(r);
-          PRINTF("Route: %02d -> %02d", r->ipaddr.u8[15], nexthop->u8[15]);
+          //nexthop = uip_ds6_route_nexthop(r);
+          //PRINTF("Route: %02d -> %02d", r->ipaddr.u8[15], nexthop->u8[15]);
           /* PRINT6ADDR(&r->ipaddr); */
           /* PRINTF(" -> "); */
           /* PRINT6ADDR(nexthop); */
-          PRINTF(" lt:%lu\n", r->state.lifetime);
+          PRINTF(" lt:%u\n", r->state.lifetime);
 
         }
       }
     }
 
     if(etimer_expired(&periodic)) {
-      etimer_reset(&periodic);
-      ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+			if(!start_flag) {
+				etimer_set(&periodic, g_send_interval);
+				start_flag=1;
+			} else {
+				etimer_reset(&periodic);
+			}
+			send_packet(NULL);
+      //ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
 
 #if WITH_COMPOWER
       if (print == 0) {
