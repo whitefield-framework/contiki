@@ -77,6 +77,9 @@ static void dis_input(void);
 static void dio_input(void);
 static void dao_input(void);
 static void dao_ack_input(void);
+static void dco_input(void);
+static void dco_ack_input(void);
+
 
 static void dao_output_target_seq(rpl_parent_t *parent, uip_ipaddr_t *prefix,
 				  uint8_t lifetime, uint8_t seq_no);
@@ -92,6 +95,13 @@ void RPL_DEBUG_DAO_OUTPUT(rpl_parent_t *);
 
 static uint8_t dao_sequence = RPL_LOLLIPOP_INIT;
 
+#if RPL_WITH_DCO
+uint8_t path_sequence = RPL_LOLLIPOP_INIT;
+static uint8_t dco_sequence = RPL_LOLLIPOP_INIT;
+#endif
+
+
+
 #if RPL_WITH_MULTICAST
 static uip_mcast6_route_t *mcast_group;
 #endif
@@ -101,6 +111,10 @@ UIP_ICMP6_HANDLER(dis_handler, ICMP6_RPL, RPL_CODE_DIS, dis_input);
 UIP_ICMP6_HANDLER(dio_handler, ICMP6_RPL, RPL_CODE_DIO, dio_input);
 UIP_ICMP6_HANDLER(dao_handler, ICMP6_RPL, RPL_CODE_DAO, dao_input);
 UIP_ICMP6_HANDLER(dao_ack_handler, ICMP6_RPL, RPL_CODE_DAO_ACK, dao_ack_input);
+UIP_ICMP6_HANDLER(dco_handler, ICMP6_RPL, RPL_CODE_DCO, dco_input);
+UIP_ICMP6_HANDLER(dco_ack_handler, ICMP6_RPL, RPL_CODE_DCO_ACK, dco_ack_input);
+
+
 /*---------------------------------------------------------------------------*/
 
 #if RPL_WITH_DAO_ACK
@@ -641,6 +655,7 @@ dao_input_storing(void)
   */
   uip_ipaddr_t prefix;
   uip_ds6_route_t *rep;
+	uip_ipaddr_t curNextHop;
   uint8_t buffer_length;
   int pos;
   int len;
@@ -649,6 +664,9 @@ dao_input_storing(void)
   rpl_parent_t *parent;
   uip_ds6_nbr_t *nbr;
   int is_root;
+#if RPL_WITH_DCO	
+	uint8_t pathSequence;
+#endif
 
   prefixlen = 0;
   parent = NULL;
@@ -733,8 +751,10 @@ dao_input_storing(void)
       break;
     case RPL_OPTION_TRANSIT:
       /* The path sequence and control are ignored. */
-      /*      pathcontrol = buffer[i + 3];
-              pathsequence = buffer[i + 4];*/
+      /*      pathcontrol = buffer[i + 3];*/
+#if RPL_WITH_DCO			
+      pathSequence = buffer[i + 4];
+#endif
       lifetime = buffer[i + 5];
       /* The parent address is also ignored. */
       break;
@@ -819,6 +839,12 @@ dao_input_storing(void)
     return;
   }
 
+#if RPL_WITH_DCO
+	if (rep != NULL && uip_ds6_route_nexthop(rep)){
+		uip_ipaddr_copy(&curNextHop, uip_ds6_route_nexthop(rep));
+	}
+#endif	
+
   rep = rpl_add_route(dag, &prefix, prefixlen, &dao_sender_addr);
   if(rep == NULL) {
     RPL_STAT(rpl_stats.mem_overflows++);
@@ -832,8 +858,12 @@ dao_input_storing(void)
     return;
   }
 
+	
   /* set lifetime and clear NOPATH bit */
   rep->state.lifetime = RPL_LIFETIME(instance, lifetime);
+#if RPL_WITH_DCO	
+	rep->state.dao_path_sequence = pathSequence;
+#endif
   RPL_ROUTE_CLEAR_NOPATH_RECEIVED(rep);
 
 #if RPL_WITH_MULTICAST
@@ -884,6 +914,13 @@ fwd_dao:
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
     }
+
+		/* If there is a change in the next hop then send DCO on the path via previous nexthop*/
+#if RPL_WITH_DCO		
+		if (!uip_ipaddr_cmp(&curNextHop, &dao_sender_addr)){
+			dco_output(&prefix,&curNextHop, pathSequence);
+		}
+#endif		
   }
 #endif /* RPL_WITH_STORING */
 }
@@ -1206,7 +1243,10 @@ dao_output_target_seq(rpl_parent_t *parent, uip_ipaddr_t *prefix,
   buffer[pos++] = (instance->mop != RPL_MOP_NON_STORING) ? 4 : 20;
   buffer[pos++] = 0; /* flags - ignored */
   buffer[pos++] = 0; /* path control - ignored */
-  buffer[pos++] = 0; /* path seq - ignored */
+	/* TODO:When a Node Sends NP-DAO on behalf of other nodes in that case we MUST
+	     take the PATH sequence from the route entry currently we have not handled it*/
+	
+  buffer[pos++] = path_sequence; /* path seq - ignored */	
   buffer[pos++] = lifetime;
 
   if(instance->mop != RPL_MOP_NON_STORING) {
@@ -1352,6 +1392,210 @@ dao_ack_output(rpl_instance_t *instance, uip_ipaddr_t *dest, uint8_t sequence,
   uip_icmp6_send(dest, ICMP6_RPL, RPL_CODE_DAO_ACK, 4);
 #endif /* RPL_WITH_DAO_ACK */
 }
+
+static void dco_input(void)
+{
+#if RPL_WITH_DCO && RPL_WITH_STORING
+  uip_ipaddr_t dao_sender;
+	uip_ipaddr_t prefix;
+	uip_ipaddr_t *pstNextHop;
+	rpl_instance_t *instance;
+	uip_ds6_route_t *pstRoute;
+	rpl_dag *curdag;
+  uint8_t instance_id;
+	unsigned char *buffer;
+  uint16_t dco_sequence;
+  uint8_t prefixlen;
+  uint8_t flags;
+  uint8_t subopt_type;
+	uint16_t buffer_length;
+	uint16_t pos;
+  uint16_t i;
+	uint16_t len;
+	uint8_t pathLifetime;
+	uint8_t pathSequence;
+
+	buffer = UIP_ICMP_PAYLOAD;
+	buffer_length = uip_len - uip_l3_icmp_hdr_len;
+
+	uip_ipaddr_copy(&dao_sender, &UIP_IP_BUF->srcipaddr);
+	
+	/* Destination Advertisement Object */
+  PRINTF("RPL: Received a DCO from ");
+  PRINT6ADDR(&dao_sender);
+  PRINTF("\n");
+
+	pos = 0;
+	instance_id = buffer[pos++];
+  
+  instance = rpl_get_instance(instance_id);
+  if(instance == NULL) {
+    PRINTF("RPL: Ignoring a DCO for an unknown RPL instance(%u)\n",
+           instance_id);
+    goto discard;
+  }
+	
+	flags = buffer[pos++];
+	/* reserved */
+	pos++;
+	dco_sequence = buffer[pos++];
+	
+	curdag = instance->current_dag;		
+	
+	/* Is the DAG ID present? */
+	if(flags & RPL_DAO_D_FLAG) {
+		if(memcmp(&curdag->dag_id, &buffer[pos], sizeof(curdag->dag_id))) {
+			PRINTF("RPL: Ignoring a DAO for a DAG different from ours\n");
+			return;
+		}
+		pos += 16;
+	}
+
+ /* Check if there are any RPL options present. */
+  for(i = pos; i < buffer_length; i += len) {
+    subopt_type = buffer[i];
+    if(subopt_type == RPL_OPTION_PAD1) {
+      len = 1;
+    } else {
+      /* The option consists of a two-byte header and a payload. */
+      len = 2 + buffer[i + 1];
+    }
+
+    switch(subopt_type) {
+    case RPL_OPTION_TARGET:
+      /* Handle the target option. */
+      prefixlen = buffer[i + 3];
+      memset(&prefix, 0, sizeof(prefix));
+      memcpy(&prefix, buffer + i + 4, (prefixlen + 7) / CHAR_BIT);
+      break;
+    case RPL_OPTION_TRANSIT:
+      /* The path control is ignored. */
+      /*      pathcontrol = buffer[i + 3];*/
+      pathSequence = buffer[i + 4];
+      pathLifetime = buffer[i + 5];
+      /* The parent address is also ignored. */
+      break;
+    }
+  }
+
+	pstRoute = uip_ds6_route_lookup(&prefix);
+	if (pstRoute && !pathLifetime){
+		pstNextHop = uip_ds6_route_nexthop(pstRoute);
+
+		/* If We have the latest path sequence then no need to forward the DCO */
+		if (pstNextHop && pathSequence < pstRoute->state.dao_path_sequence){
+		      uip_icmp6_send(rpl_get_parent_ipaddr(dag->preferred_parent),
+                     ICMP6_RPL, RPL_CODE_DCO, buffer_length);
+		}
+
+		/* Remove the route entry*/
+		uip_ds6_route_rm(pstRoute);
+		/* If DCO-ACK is requested then send the ACK */
+		dco_ack_output(instance,dao_sender,dco_sequence, 0);
+		
+	}
+	else
+	{
+		/* If DCO-ACK is requested then send -ve ACK  this si required to stop DCO retransmission*/
+		dco_ack_output(instance,dao_sender,dco_sequence, 234);
+	}
+
+#endif
+
+ discard:
+  uip_clear_buf();	
+}
+
+void dco_output
+(
+	uip_ipaddr_t *pstTargetIP,
+	uip_ipaddr_t *pstDcoTarget,
+	uint8_t pathSequence
+)
+{
+
+#if RPL_WITH_DCO && RPL_WITH_STORING
+	uint8_t *buffer;
+	int pos;
+	uint8_t prefixlen;
+	
+	buffer = UIP_ICMP_PAYLOAD;
+	pos = 0;
+	
+	buffer[pos++] = instance->instance_id;
+	buffer[pos] = 0;
+#if RPL_DAO_SPECIFY_DAG
+	buffer[pos] |= RPL_DAO_D_FLAG;
+#endif /* RPL_DAO_SPECIFY_DAG */
+
+#if RPL_WITH_DCO_ACK
+	buffer[pos] |= RPL_DAO_K_FLAG;
+#endif /* RPL_WITH_DAO_ACK */
+
+		++pos;
+		buffer[pos++] = 0; /* reserved */
+		buffer[pos++] = dco_sequence;
+		RPL_LOLLIPOP_INCREMENT(dco_sequence);
+		
+#if RPL_DAO_SPECIFY_DAG
+		memcpy(buffer + pos, &dag->dag_id, sizeof(dag->dag_id));
+		pos+=sizeof(dag->dag_id);
+#endif /* RPL_DAO_SPECIFY_DAG */
+	
+		/* create target subopt */
+		prefixlen = sizeof(*pstTargetIP) * CHAR_BIT;
+		buffer[pos++] = RPL_OPTION_TARGET;
+		buffer[pos++] = 2 + ((prefixlen + 7) / CHAR_BIT);
+		buffer[pos++] = 0; /* reserved */
+		buffer[pos++] = prefixlen;
+		memcpy(buffer + pos, pstTargetIP, (prefixlen + 7) / CHAR_BIT);
+		pos += ((prefixlen + 7) / CHAR_BIT);
+	
+		/* Create a transit information sub-option. */
+		buffer[pos++] = RPL_OPTION_TRANSIT;
+		buffer[pos++] = 4;
+		buffer[pos++] = 0; /* flags - ignored */
+		buffer[pos++] = 0; /* path control - ignored */		
+		buffer[pos++] = pathSequence; /* path seq - ignored */
+		buffer[pos++] = 0;
+
+		uip_icmp6_send(pstDcoTarget, ICMP6_RPL, RPL_CODE_DCO, pos);
+#endif
+}
+
+static void dco_ack_input(void)
+{
+#if RPL_WITH_DCO && RPL_WITH_STORING
+#endif
+}
+
+/* We can Modify dao_ack_output with message type if we don't want a separate function */
+void dco_ack_output
+(
+	rpl_instance_t *instance, 
+	uip_ipaddr_t *dest, 
+	uint8_t sequence,
+	uint8_t status
+)
+{
+#if RPL_WITH_DCO && RPL_WITH_STORING
+	unsigned char *buffer;
+	
+	PRINTF("RPL: Sending a DCO %s with sequence number %d to ", status < 128 ? "ACK" : "NACK", sequence);
+	PRINT6ADDR(dest);
+	PRINTF(" with status %d\n", status);
+	
+	buffer = UIP_ICMP_PAYLOAD;
+	
+	buffer[0] = instance->instance_id;
+	buffer[1] = 0;
+	buffer[2] = sequence;
+	buffer[3] = status;
+	
+	uip_icmp6_send(dest, ICMP6_RPL, RPL_CODE_DCO_ACK, 4);
+#endif	
+}
+
 /*---------------------------------------------------------------------------*/
 void
 rpl_icmp6_register_handlers()
@@ -1360,6 +1604,8 @@ rpl_icmp6_register_handlers()
   uip_icmp6_register_input_handler(&dio_handler);
   uip_icmp6_register_input_handler(&dao_handler);
   uip_icmp6_register_input_handler(&dao_ack_handler);
+	uip_icmp6_register_input_handler(&dco_handler);
+  uip_icmp6_register_input_handler(&dco_ack_handler);
 }
 /*---------------------------------------------------------------------------*/
 

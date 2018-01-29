@@ -78,6 +78,11 @@
 #define RPL_CODE_SEC_DAO               0x82   /* Secure DAO */
 #define RPL_CODE_SEC_DAO_ACK           0x83   /* Secure DAO ACK */
 
+#define RPL_CODE_DCO                   0x04
+#define RPL_CODE_DCO_ACK               0x05
+#define RPL_CODE_SEC_DCO               0x85
+#define RPL_CODE_SEC_DCO_ACK           0x86
+
 /* RPL control message options. */
 #define RPL_OPTION_PAD1                  0
 #define RPL_OPTION_PADN                  1
@@ -343,6 +348,7 @@ extern rpl_stats_t rpl_stats;
 /* Instances */
 extern rpl_instance_t instance_table[];
 extern rpl_instance_t *default_instance;
+extern uint8_t path_sequence;
 
 /* ICMPv6 functions for RPL. */
 void dis_output(uip_ipaddr_t *addr);

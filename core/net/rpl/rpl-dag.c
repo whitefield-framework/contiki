@@ -835,6 +835,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
       /* Trigger DAO transmission from immediate children.
        * Only for storing mode, see RFC6550 section 9.6. */
       RPL_LOLLIPOP_INCREMENT(instance->dtsn_out);
+			RPL_LOLLIPOP_INCREMENT(path_sequence);
     }
     /* The DAO parent set changed - schedule a DAO transmission. */
     rpl_schedule_dao(instance);
