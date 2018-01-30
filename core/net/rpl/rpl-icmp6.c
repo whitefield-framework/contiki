@@ -83,6 +83,20 @@ static void dco_ack_input(void);
 
 static void dao_output_target_seq(rpl_parent_t *parent, uip_ipaddr_t *prefix,
                                   uint8_t lifetime, uint8_t seq_no);
+void dco_output
+(
+    rpl_instance_t *instance,
+	uip_ipaddr_t *pstTargetIP,
+	uip_ipaddr_t *pstDcoTarget,
+	uint8_t pathSequence
+);
+void dco_ack_output
+(
+	rpl_instance_t *instance, 
+	uip_ipaddr_t *dest, 
+	uint8_t sequence,
+	uint8_t status
+);
 
 /* some debug callbacks useful when debugging RPL networks */
 #ifdef RPL_DEBUG_DIO_INPUT
@@ -928,7 +942,7 @@ fwd_dao:
 		/* If there is a change in the next hop then send DCO on the path via previous nexthop*/
 #if RPL_WITH_DCO		
 		if (!uip_ipaddr_cmp(&curNextHop, &dao_sender_addr)){
-			dco_output(&prefix,&curNextHop, pathSequence);
+			dco_output(instance, &prefix,&curNextHop, pathSequence);
 		}
 #endif		
   }
@@ -1411,7 +1425,7 @@ static void dco_input(void)
 	uip_ipaddr_t *pstNextHop;
 	rpl_instance_t *instance;
 	uip_ds6_route_t *pstRoute;
-	rpl_dag *curdag;
+	rpl_dag_t *curdag;
   uint8_t instance_id;
 	unsigned char *buffer;
   uint16_t dco_sequence;
@@ -1494,20 +1508,20 @@ static void dco_input(void)
 
 		/* If We have the latest path sequence then no need to forward the DCO */
 		if (pstNextHop && pathSequence < pstRoute->state.dao_path_sequence){
-		      uip_icmp6_send(rpl_get_parent_ipaddr(dag->preferred_parent),
+		      uip_icmp6_send(pstNextHop,
                      ICMP6_RPL, RPL_CODE_DCO, buffer_length);
 		}
 
 		/* Remove the route entry*/
 		uip_ds6_route_rm(pstRoute);
 		/* If DCO-ACK is requested then send the ACK */
-		dco_ack_output(instance,dao_sender,dco_sequence, 0);
+		dco_ack_output(instance,&dao_sender,dco_sequence, 0);
 		
 	}
 	else
 	{
 		/* If DCO-ACK is requested then send -ve ACK  this si required to stop DCO retransmission*/
-		dco_ack_output(instance,dao_sender,dco_sequence, 234);
+		dco_ack_output(instance,&dao_sender,dco_sequence, 234);
 	}
 
 #endif
@@ -1518,6 +1532,7 @@ static void dco_input(void)
 
 void dco_output
 (
+    rpl_instance_t *instance,
 	uip_ipaddr_t *pstTargetIP,
 	uip_ipaddr_t *pstDcoTarget,
 	uint8_t pathSequence
@@ -1548,8 +1563,8 @@ void dco_output
 		RPL_LOLLIPOP_INCREMENT(dco_sequence);
 		
 #if RPL_DAO_SPECIFY_DAG
-		memcpy(buffer + pos, &dag->dag_id, sizeof(dag->dag_id));
-		pos+=sizeof(dag->dag_id);
+		memcpy(buffer + pos, &instance->current_dag->dag_id, sizeof(instance->current_dag->dag_id));
+		pos+=sizeof(instance->current_dag->dag_id);
 #endif /* RPL_DAO_SPECIFY_DAG */
 	
 		/* create target subopt */

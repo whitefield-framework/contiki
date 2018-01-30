@@ -348,6 +348,6 @@
 #define RPL_WITH_DCO RPL_CONF_WITH_DCO
 #else
 #define RPL_WITH_DCO   1
-#define
+#endif
 
 #endif /* RPL_CONF_H */
