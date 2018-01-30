@@ -129,7 +129,6 @@ typedef unsigned short uip_stats_t;
 #define UIP_CONF_UDP_CHECKSUMS   1
 #define UIP_CONF_PINGADDRCONF    0
 #define UIP_CONF_LOGGING         0
-
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 
 #include <ctype.h>

@@ -12,18 +12,6 @@
 
 extern uint16_t gNodeID;
 
-uint16_t lladdr_to_id(uip_lladdr_t *ll)
-{
-	uint16_t nodeid;
-	uint8_t *ptr=(uint8_t*)&nodeid;
-	if(!(ll->addr[0]|ll->addr[1]|ll->addr[2]|ll->addr[3]|ll->addr[4]|ll->addr[5]|ll->addr[6]|ll->addr[7])) { 
-		return 0xffff;
-	}
-	ptr[0] = ll->addr[7];
-	ptr[1] = ll->addr[6];
-	return nodeid;
-}
-
 mac_callback_t g_mac_sent_cb;
 /*---------------------------------------------------------------------------*/
 static void send_packet(mac_callback_t sent, void *ptr)
@@ -44,7 +32,7 @@ static void send_packet(mac_callback_t sent, void *ptr)
 	mbuf->len = packetbuf_totlen();
 	memcpy(mbuf->buf, packetbuf_hdrptr(), packetbuf_totlen());
 	mbuf->src_id = gNodeID;
-	mbuf->dst_id = lladdr_to_id((uip_lladdr_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
+	mbuf->dst_id = cl_get_longaddr2id((uint8_t*)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
 	INFO("src:%0x dst:%0x len:%d\n", mbuf->src_id, mbuf->dst_id, mbuf->len);
 	if(CL_SUCCESS != cl_sendto_q(MTYPE(AIRLINE, CL_MGR_ID), mbuf, mbuf->len + sizeof(msg_buf_t))) {
 		mac_call_sent_callback(sent, ptr, MAC_TX_ERR_FATAL, 3);
@@ -79,9 +67,9 @@ void mac_handle_ack(msg_buf_t *mbuf)
 		ERROR("How can mac sent cb is not set when ACK is rcvd!\n");
 		return;
 	}
-	status = get_tx_status(mbuf->ack.status, statstr, sizeof(statstr));
-	INFO("ACK status:%s retries:%d\n", statstr, mbuf->ack.retries);
-	mac_call_sent_callback(g_mac_sent_cb, NULL, status, mbuf->ack.retries);
+	status = get_tx_status(mbuf->info.ack.status, statstr, sizeof(statstr));
+	INFO("ACK status:%s retries:%d\n", statstr, mbuf->info.ack.retries);
+	mac_call_sent_callback(g_mac_sent_cb, NULL, status, mbuf->info.ack.retries);
 }
 
 /*---------------------------------------------------------------------------*/
