@@ -59,7 +59,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_PRINT
 
 #include "net/ip/uip-debug.h"
 
@@ -669,7 +669,7 @@ dao_input_storing(void)
   */
   uip_ipaddr_t prefix;
   uip_ds6_route_t *rep;
-	uip_ipaddr_t curNextHop;
+  uip_ipaddr_t curNextHop;
   uint8_t buffer_length;
   int pos;
   int len;
@@ -685,6 +685,7 @@ dao_input_storing(void)
   prefixlen = 0;
   parent = NULL;
   memset(&prefix, 0, sizeof(prefix));
+  memset(&curNextHop, 0, sizeof(curNextHop));
 
   uip_ipaddr_copy(&dao_sender_addr, &UIP_IP_BUF->srcipaddr);
 
@@ -862,6 +863,10 @@ dao_input_storing(void)
 #if RPL_WITH_DCO
 	if (rep != NULL && uip_ds6_route_nexthop(rep)){
 		uip_ipaddr_copy(&curNextHop, uip_ds6_route_nexthop(rep));
+          PRINTF("Current Next hop ");
+          PRINT6ADDR(&curNextHop);
+          PRINTF("\nNew Next Hop ");
+          PRINT6ADDR(&dao_sender_addr);
 	}
 #endif	
 
@@ -882,6 +887,7 @@ dao_input_storing(void)
   /* set lifetime and clear NOPATH bit */
   rep->state.lifetime = RPL_LIFETIME(instance, lifetime);
 #if RPL_WITH_DCO	
+        PRINTF("Updating Path Sequence -%u\n",pathSequence);
 	rep->state.dao_path_sequence = pathSequence;
 #endif
   RPL_ROUTE_CLEAR_NOPATH_RECEIVED(rep);
@@ -941,7 +947,9 @@ fwd_dao:
 
 		/* If there is a change in the next hop then send DCO on the path via previous nexthop*/
 #if RPL_WITH_DCO		
-		if (!uip_ipaddr_cmp(&curNextHop, &dao_sender_addr)){
+		if (!uip_is_addr_unspecified(&curNextHop) && 
+                     !uip_ipaddr_cmp(&curNextHop, &dao_sender_addr)){
+                        PRINTF("Sending DCO as there is change in nexthop\n");
 			dco_output(instance, &prefix,&curNextHop, pathSequence);
 		}
 #endif		
@@ -1269,8 +1277,12 @@ dao_output_target_seq(rpl_parent_t *parent, uip_ipaddr_t *prefix,
   buffer[pos++] = 0; /* path control - ignored */
 	/* TODO:When a Node Sends NP-DAO on behalf of other nodes in that case we MUST
 	     take the PATH sequence from the route entry currently we have not handled it*/
+#if RPL_WITH_DCO	
+  buffer[pos++] = path_sequence; /* path seq - ignored */
+#else
+  buffer[pos++] = 0;
+#endif
 	
-  buffer[pos++] = path_sequence; /* path seq - ignored */	
   buffer[pos++] = lifetime;
 
   if(instance->mop != RPL_MOP_NON_STORING) {
@@ -1507,21 +1519,40 @@ static void dco_input(void)
 		pstNextHop = uip_ds6_route_nexthop(pstRoute);
 
 		/* If We have the latest path sequence then no need to forward the DCO */
-		if (pstNextHop && pathSequence < pstRoute->state.dao_path_sequence){
-		      uip_icmp6_send(pstNextHop,
+                PRINTF("Handling DCO Received path seq-%u stored %u\n",
+                      pathSequence, pstRoute->state.dao_path_sequence);
+		if (pstNextHop && pathSequence > pstRoute->state.dao_path_sequence){
+                     PRINTF("Forwarding the DCO to");
+                     PRINT6ADDR(pstNextHop);
+                     PRINTF("\n");
+		     uip_icmp6_send(pstNextHop,
                      ICMP6_RPL, RPL_CODE_DCO, buffer_length);
+                     /* Remove the rute entry*/
+		     uip_ds6_route_rm(pstRoute);
 		}
 
-		/* Remove the route entry*/
-		uip_ds6_route_rm(pstRoute);
 		/* If DCO-ACK is requested then send the ACK */
-		dco_ack_output(instance,&dao_sender,dco_sequence, 0);
+                if(flags & RPL_DAO_K_FLAG) {
+                  uip_clear_buf();
+		  dco_ack_output(instance,&dao_sender,dco_sequence, 0);
+                }
 		
 	}
 	else
 	{
+           uip_ipaddr_t stMyAddress;
+           /* If its My address no need to send the -ve ACK */
+           if (get_global_addr(&stMyAddress) && 
+                uip_ipaddr_cmp(&stMyAddress, &prefix)){
+              PRINTF("Received DCO of my OWN address\n");
+              goto discard;
+           }
+           PRINTF("No Route entry found for the DCO target\n");
 		/* If DCO-ACK is requested then send -ve ACK  this si required to stop DCO retransmission*/
-		dco_ack_output(instance,&dao_sender,dco_sequence, 234);
+                if(flags & RPL_DAO_K_FLAG) {
+                  uip_clear_buf();
+		  dco_ack_output(instance,&dao_sender,dco_sequence, 234);
+                }
 	}
 
 #endif
