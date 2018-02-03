@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "common-hdr.h"
 
 #define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
@@ -54,26 +55,66 @@ static struct uip_udp_conn *server_conn;
 
 PROCESS(udp_server_process, "UDP server process");
 AUTOSTART_PROCESSES(&udp_server_process);
+
+#define	MAX_NODES	1000
+typedef struct _dpkt_stat_
+{
+	uip_ipaddr_t ip;
+	uint32_t lastseq;
+	uint32_t dropcnt;
+	uint32_t unordered;
+	uint32_t rcvcnt;
+}dpkt_stat_t;
+
+dpkt_stat_t g_dstats[MAX_NODES];
+uint32_t g_ds_cnt;
+
+dpkt_stat_t *get_dpkt_stat(uip_ipaddr_t *srcip)
+{
+	int i;
+	dpkt_stat_t *ds;
+
+	for(i=0;i<g_ds_cnt;i++) {
+		ds = &(g_dstats[i]);
+		if(uip_ipaddr_cmp(srcip, &ds->ip)) {
+			return ds;
+		}
+	}
+	return NULL;
+}
+
 /*---------------------------------------------------------------------------*/
 static void
 tcpip_handler(void)
 {
-  char *appdata;
+	dpkt_t *pkt;
+	dpkt_stat_t *ds;
 
-  if(uip_newdata()) {
-    appdata = (char *)uip_appdata;
-    appdata[uip_datalen()] = 0;
-    PRINTF("DATA recv '%s' from ", appdata);
-    PRINTF("%d",
-           UIP_IP_BUF->srcipaddr.u8[sizeof(UIP_IP_BUF->srcipaddr.u8) - 1]);
-    PRINTF("\n");
+  if(!uip_newdata()) {
+		return;
+	}
+	pkt = (dpkt_t *)uip_appdata;
+	ds = get_dpkt_stat(&(UIP_IP_BUF->srcipaddr));
+	if(!ds) {
+		if(g_ds_cnt>=MAX_NODES) {
+			printf("dstats exceeded!\n");
+			return;
+		}
+    ds = &g_dstats[g_ds_cnt++];
+		ds->ip = UIP_IP_BUF->srcipaddr;
+	}
+	if(pkt->seq < ds->lastseq) {
+		ds->dropcnt++;
+	}
+	ds->rcvcnt++;
+	ds->lastseq = pkt->seq;
+
 #if SERVER_REPLY
-    PRINTF("DATA sending reply\n");
-    uip_ipaddr_copy(&server_conn->ripaddr, &UIP_IP_BUF->srcipaddr);
-    uip_udp_packet_send(server_conn, "Reply", sizeof("Reply"));
-    uip_create_unspecified(&server_conn->ripaddr);
+	PRINTF("DATA sending reply\n");
+	uip_ipaddr_copy(&server_conn->ripaddr, &UIP_IP_BUF->srcipaddr);
+	uip_udp_packet_send(server_conn, "Reply", sizeof("Reply"));
+	uip_create_unspecified(&server_conn->ripaddr);
 #endif
-  }
 }
 /*---------------------------------------------------------------------------*/
 static void

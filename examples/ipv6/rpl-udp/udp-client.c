@@ -41,6 +41,7 @@
 #endif
 #include <stdio.h>
 #include <string.h>
+#include "common-hdr.h"
 
 #include "dev/serial-line.h"
 #include "net/ipv6/uip-ds6-route.h"
@@ -50,17 +51,17 @@
 
 #define UDP_EXAMPLE_ID  190
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 30
+#define PERIOD 300
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
 #define SEND_INTERVAL		(PERIOD * CLOCK_SECOND)
 #define SEND_TIME		(random_rand() % (SEND_INTERVAL))
-#define MAX_PAYLOAD_LEN		30
+#define MAX_PAYLOAD_LEN		256
 
 static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
@@ -84,11 +85,20 @@ tcpip_handler(void)
     printf("DATA recv '%s' (s:%d, r:%d)\n", str, seq_id, reply);
   }
 }
+
+uint32_t g_seq = 0;
+uint32_t g_payload_len=32;
 /*---------------------------------------------------------------------------*/
 static void
 send_packet(void *ptr)
 {
   char buf[MAX_PAYLOAD_LEN];
+	dpkt_t *pkt=(dpkt_t*)buf;
+
+	if(sizeof(buf) < sizeof(pkt)+g_payload_len) {
+		printf("buffer size mismatch .. expect no UDP pkt\n");
+		return;
+	}
 
 #ifdef SERVER_REPLY
   uint8_t num_used = 0;
@@ -107,10 +117,11 @@ send_packet(void *ptr)
 #endif /* SERVER_REPLY */
 
   seq_id++;
+	pkt->seq = seq_id;
   PRINTF("DATA send to %d 'Hello %d'\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
-  sprintf(buf, "Hello %d from the client", seq_id);
-  uip_udp_packet_sendto(client_conn, buf, strlen(buf),
+//  sprintf(buf, "Hello %d from the client", seq_id);
+  uip_udp_packet_sendto(client_conn, buf, sizeof(pkt)+g_payload_len,
                         &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
 }
 /*---------------------------------------------------------------------------*/
@@ -129,7 +140,7 @@ print_local_addresses(void)
       PRINTF("\n");
       /* hack to make address "final" */
       if (state == ADDR_TENTATIVE) {
-	uip_ds6_if.addr_list[i].state = ADDR_PREFERRED;
+        uip_ds6_if.addr_list[i].state = ADDR_PREFERRED;
       }
     }
   }
@@ -221,7 +232,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
   powertrace_sniff(POWERTRACE_ON);
 #endif
 
-  etimer_set(&periodic, SEND_INTERVAL);
+  etimer_set(&periodic, g_send_interval);
   while(1) {
     PROCESS_YIELD();
     if(ev == tcpip_event) {
