@@ -130,10 +130,10 @@ int main(int argc, char **argv)
 		retval = process_run();
 		usec = retval ? 1 : 1000;
 		usleep(usec);
-	//	LOCK();
+		//LOCK();
 		etimer_request_poll();
 		process_poll(&wfradio_process);
-	//	UNLOCK();
+		//UNLOCK();
 	}
 
 	return 0;
