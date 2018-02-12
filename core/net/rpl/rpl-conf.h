@@ -341,13 +341,13 @@
 #ifdef RPL_CONF_WITH_DCO_ACK
 #define RPL_WITH_DCO_ACK   RPL_CONF_WITH_DCO_ACK
 #else
-#define RPL_WITH_DCO_ACK 1
+#define RPL_WITH_DCO_ACK 0
 #endif
 
 #ifdef RPL_CONF_WITH_DCO
 #define RPL_WITH_DCO RPL_CONF_WITH_DCO
 #else
-#define RPL_WITH_DCO   1
+#define RPL_WITH_DCO   0
 #endif
 
 #endif /* RPL_CONF_H */

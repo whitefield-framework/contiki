@@ -329,6 +329,19 @@ struct rpl_stats {
   uint16_t loop_errors;
   uint16_t loop_warnings;
   uint16_t root_repairs;
+  uint32_t dio_sent_m;
+  uint32_t dio_sent_u;
+  uint32_t dio_recvd;
+  uint32_t dao_sent;
+  uint32_t dao_forwarded;
+  uint32_t dao_recvd;
+  uint32_t npdao_sent;
+  uint32_t npdao_forwarded;
+  uint32_t npdao_recvd;
+  uint32_t dco_sent;
+  uint32_t dco_forwarded;
+  uint32_t dco_ignored;
+  uint32_t dco_recvd;
 };
 typedef struct rpl_stats rpl_stats_t;
 

@@ -332,6 +332,7 @@ dio_input(void)
   PRINTF("RPL: Received a DIO from ");
   PRINT6ADDR(&from);
   PRINTF("\n");
+  RPL_STAT(rpl_stats.dio_recvd++);
 
   buffer_length = uip_len - uip_l3_icmp_hdr_len;
 
@@ -639,12 +640,14 @@ dio_output(rpl_instance_t *instance, uip_ipaddr_t *uc_addr)
            (unsigned)instance->current_dag->rank);
     uip_create_linklocal_rplnodes_mcast(&addr);
     uip_icmp6_send(&addr, ICMP6_RPL, RPL_CODE_DIO, pos);
+    RPL_STAT(rpl_stats.dio_sent_m++);
   } else {
     PRINTF("RPL: Sending unicast-DIO with rank %u to ",
            (unsigned)instance->current_dag->rank);
     PRINT6ADDR(uc_addr);
     PRINTF("\n");
     uip_icmp6_send(uc_addr, ICMP6_RPL, RPL_CODE_DIO, pos);
+	RPL_STAT(rpl_stats.dio_sent_u++);
   }
 #endif /* RPL_LEAF_ONLY */
 }
@@ -706,6 +709,8 @@ dao_input_storing(void)
 
   dag = instance->current_dag;
   is_root = (dag->rank == ROOT_RANK(instance));
+
+  RPL_STAT(rpl_stats.dao_recvd++);
 
   /* Is the DAG ID present? */
   if(flags & RPL_DAO_D_FLAG) {
@@ -802,6 +807,8 @@ dao_input_storing(void)
 
   if(lifetime == RPL_ZERO_LIFETIME) {
     PRINTF("RPL: No-Path DAO received\n");
+	RPL_STAT(rpl_stats.dao_recvd--);
+	RPL_STAT(rpl_stats.npdao_recvd++);
     /* No-Path DAO received; invoke the route purging routine. */
     if(rep != NULL &&
        !RPL_ROUTE_IS_NOPATH_RECEIVED(rep) &&
@@ -830,6 +837,7 @@ dao_input_storing(void)
         buffer[3] = out_seq; /* add an outgoing seq no before fwd */
         uip_icmp6_send(rpl_get_parent_ipaddr(dag->preferred_parent),
                        ICMP6_RPL, RPL_CODE_DAO, buffer_length);
+		RPL_STAT(rpl_stats.npdao_forwarded++);
       }
     }
     /* independent if we remove or not - ACK the request */
@@ -891,6 +899,7 @@ dao_input_storing(void)
 	rep->state.dao_path_sequence = pathSequence;
 #endif
   RPL_ROUTE_CLEAR_NOPATH_RECEIVED(rep);
+  PRINTF("Route Life Time in Seconds-%u\n",rep->state.lifetime);
 
 #if RPL_WITH_MULTICAST
 fwd_dao:
@@ -937,6 +946,7 @@ fwd_dao:
       buffer[3] = out_seq; /* add an outgoing seq no before fwd */
       uip_icmp6_send(rpl_get_parent_ipaddr(dag->preferred_parent),
                      ICMP6_RPL, RPL_CODE_DAO, buffer_length);
+	  RPL_STAT(rpl_stats.dao_forwarded++);
     }
     if(should_ack) {
       PRINTF("RPL: Sending DAO ACK\n");
@@ -1310,6 +1320,13 @@ dao_output_target_seq(rpl_parent_t *parent, uip_ipaddr_t *prefix,
 
   if(dest_ipaddr != NULL) {
     uip_icmp6_send(dest_ipaddr, ICMP6_RPL, RPL_CODE_DAO, pos);
+	if (lifetime == 0){
+		RPL_STAT(rpl_stats.npdao_sent++);
+	}
+	else{
+		RPL_STAT(rpl_stats.dao_sent++);
+	}
+		
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1433,33 +1450,34 @@ static void dco_input(void)
 {
 #if RPL_WITH_DCO && RPL_WITH_STORING
   uip_ipaddr_t dao_sender;
-	uip_ipaddr_t prefix;
-	uip_ipaddr_t *pstNextHop;
-	rpl_instance_t *instance;
-	uip_ds6_route_t *pstRoute;
-	rpl_dag_t *curdag;
+  uip_ipaddr_t prefix;
+  uip_ipaddr_t *pstNextHop;
+  rpl_instance_t *instance;
+  uip_ds6_route_t *pstRoute;
+  rpl_dag_t *curdag;
   uint8_t instance_id;
-	unsigned char *buffer;
+  unsigned char *buffer;
   uint16_t dco_sequence;
   uint8_t prefixlen;
   uint8_t flags;
   uint8_t subopt_type;
-	uint16_t buffer_length;
-	uint16_t pos;
+  uint16_t buffer_length;
+  uint16_t pos;
   uint16_t i;
-	uint16_t len;
-	uint8_t pathLifetime;
-	uint8_t pathSequence;
+  uint16_t len;
+  uint8_t pathLifetime;
+  uint8_t pathSequence;
 
-	buffer = UIP_ICMP_PAYLOAD;
-	buffer_length = uip_len - uip_l3_icmp_hdr_len;
+  buffer = UIP_ICMP_PAYLOAD;
+  buffer_length = uip_len - uip_l3_icmp_hdr_len;
 
-	uip_ipaddr_copy(&dao_sender, &UIP_IP_BUF->srcipaddr);
+  uip_ipaddr_copy(&dao_sender, &UIP_IP_BUF->srcipaddr);
 	
 	/* Destination Advertisement Object */
   PRINTF("RPL: Received a DCO from ");
   PRINT6ADDR(&dao_sender);
   PRINTF("\n");
+  RPL_STAT(rpl_stats.dco_recvd++);
 
 	pos = 0;
 	instance_id = buffer[pos++];
@@ -1528,7 +1546,11 @@ static void dco_input(void)
 		     uip_icmp6_send(pstNextHop,
                      ICMP6_RPL, RPL_CODE_DCO, buffer_length);
                      /* Remove the rute entry*/
+			 RPL_STAT(rpl_stats.dco_forwarded++);
 		     uip_ds6_route_rm(pstRoute);
+		}
+		else{
+			RPL_STAT(rpl_stats.dco_ignored++);
 		}
 
 		/* If DCO-ACK is requested then send the ACK */
@@ -1545,6 +1567,7 @@ static void dco_input(void)
            if (get_global_addr(&stMyAddress) && 
                 uip_ipaddr_cmp(&stMyAddress, &prefix)){
               PRINTF("Received DCO of my OWN address\n");
+			  RPL_STAT(rpl_stats.dco_ignored++);
               goto discard;
            }
            PRINTF("No Route entry found for the DCO target\n");
@@ -1616,6 +1639,7 @@ void dco_output
 		buffer[pos++] = 0;
 
 		uip_icmp6_send(pstDcoTarget, ICMP6_RPL, RPL_CODE_DCO, pos);
+		RPL_STAT(rpl_stats.dco_sent++);
 #endif
 }
 
