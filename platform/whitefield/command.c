@@ -109,6 +109,19 @@ int cmd_rpl_stats(uint16_t id, char *buf, int buflen)
 	ADD2BUF("\t\"loop_errors\": \"%d\",\n", rpl_stats.loop_errors);
 	ADD2BUF("\t\"loop_warns\": \"%d\",\n", rpl_stats.loop_warnings);
 	ADD2BUF("\t\"root_repairs\": \"%d\"\n", rpl_stats.root_repairs);
+	ADD2BUF("\t\"dio sent multicast\": \"%d\"\n", rpl_stats.dio_sent_m);
+	ADD2BUF("\t\"dio sent unicast\": \"%d\"\n", rpl_stats.dio_sent_u);
+	ADD2BUF("\t\"dio recvd\": \"%d\"\n", rpl_stats.dio_recvd);
+	ADD2BUF("\t\"dao sent\": \"%d\"\n", rpl_stats.dao_sent);
+	ADD2BUF("\t\"dao recvd\": \"%d\"\n", rpl_stats.dao_recvd);
+	ADD2BUF("\t\"dao forwarded\": \"%d\"\n", rpl_stats.dao_forwarded);
+	ADD2BUF("\t\"npdao sent\": \"%d\"\n", rpl_stats.npdao_sent);
+	ADD2BUF("\t\"npdao recvd\": \"%d\"\n", rpl_stats.npdao_recvd);
+	ADD2BUF("\t\"npdao forwarded\": \"%d\"\n", rpl_stats.npdao_forwarded);
+	ADD2BUF("\t\"dco sent\": \"%d\"\n", rpl_stats.dco_sent);
+	ADD2BUF("\t\"dco recvd\": \"%d\"\n", rpl_stats.dco_recvd);
+	ADD2BUF("\t\"dco forwarded\": \"%d\"\n", rpl_stats.dco_forwarded);
+	ADD2BUF("\t\"dco ignored\": \"%d\"\n", rpl_stats.dco_ignored);
 	ADD2BUF("}\n}");
 #if 0
 	n = snprintf(buf, buflen, "mem_ovrflw=%d,loc_rep=%d,glo_rep=%d,"

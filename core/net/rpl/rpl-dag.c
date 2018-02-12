@@ -827,14 +827,20 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
     PRINTF("RPL: Changed preferred parent, rank changed from %u to %u\n",
   	(unsigned)old_rank, best_dag->rank);
     RPL_STAT(rpl_stats.parent_switch++);
+
     if(RPL_IS_STORING(instance)) {
+#if !RPL_WITH_DCO	
       if(last_parent != NULL) {
         /* Send a No-Path DAO to the removed preferred parent. */
         dao_output(last_parent, RPL_ZERO_LIFETIME);
       }
       /* Trigger DAO transmission from immediate children.
        * Only for storing mode, see RFC6550 section 9.6. */
+#endif
       RPL_LOLLIPOP_INCREMENT(instance->dtsn_out);
+#if RPL_WITH_DCO
+      RPL_LOLLIPOP_INCREMENT(path_sequence);
+#endif
     }
     /* The DAO parent set changed - schedule a DAO transmission. */
     rpl_schedule_dao(instance);

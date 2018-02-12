@@ -78,6 +78,11 @@
 #define RPL_CODE_SEC_DAO               0x82   /* Secure DAO */
 #define RPL_CODE_SEC_DAO_ACK           0x83   /* Secure DAO ACK */
 
+#define RPL_CODE_DCO                   0x04
+#define RPL_CODE_DCO_ACK               0x05
+#define RPL_CODE_SEC_DCO               0x85
+#define RPL_CODE_SEC_DCO_ACK           0x86
+
 /* RPL control message options. */
 #define RPL_OPTION_PAD1                  0
 #define RPL_OPTION_PADN                  1
@@ -324,6 +329,19 @@ struct rpl_stats {
   uint16_t loop_errors;
   uint16_t loop_warnings;
   uint16_t root_repairs;
+  uint32_t dio_sent_m;
+  uint32_t dio_sent_u;
+  uint32_t dio_recvd;
+  uint32_t dao_sent;
+  uint32_t dao_forwarded;
+  uint32_t dao_recvd;
+  uint32_t npdao_sent;
+  uint32_t npdao_forwarded;
+  uint32_t npdao_recvd;
+  uint32_t dco_sent;
+  uint32_t dco_forwarded;
+  uint32_t dco_ignored;
+  uint32_t dco_recvd;
 };
 typedef struct rpl_stats rpl_stats_t;
 
@@ -343,6 +361,7 @@ extern rpl_stats_t rpl_stats;
 /* Instances */
 extern rpl_instance_t instance_table[];
 extern rpl_instance_t *default_instance;
+extern uint8_t path_sequence;
 
 /* ICMPv6 functions for RPL. */
 void dis_output(uip_ipaddr_t *addr);

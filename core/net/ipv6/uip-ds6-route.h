@@ -134,6 +134,7 @@ typedef struct rpl_route_entry {
   struct rpl_dag *dag;
   uint8_t dao_seqno_out;
   uint8_t dao_seqno_in;
+	uint8_t dao_path_sequence;
   uint8_t state_flags;
 } rpl_route_entry_t;
 #endif /* UIP_DS6_ROUTE_STATE_TYPE */
