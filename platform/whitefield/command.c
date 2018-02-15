@@ -93,27 +93,27 @@ int cmd_rtsize(uint16_t id, char *buf, int buflen)
 int cmd_route_table(uint16_t id, char *buf, int buflen)
 {
 	int n=0;
-    FILE *fp=NULL;
+  FILE *fp=NULL;
 
-    if(buf && buf[0]) {
-        fp = fopen(buf, "wt");
-        if(!fp) {
-            ADD2BUF(fp, "cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
-            ERROR("cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
-            return n;
-        }
-    }
-    INFO("cmd_route_table buf:[%s]\n",buf);
+  if(buf && buf[0]) {
+      fp = fopen(buf, "wt");
+      if(!fp) {
+          ADD2BUF(fp, "cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
+          ERROR("cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
+          return n;
+      }
+  }
+  INFO("cmd_route_table buf:[%s]\n",buf);
 	//LOCK();
 	ADD2BUF(fp, "{ \"route_table\": {\n");
 	ADD2BUF(fp, "\t\"routes\": [\n");
 	n += get_route_list(fp, buf+n, buflen-n);
 	ADD2BUF(fp, "]\n}}");
 	//UNLOCK();
+  if(fp) {
     fclose(fp);
-    if(fp) {
-        ADD2BUF(NULL, "SUCCESS");
-    }
+    ADD2BUF(NULL, "SUCCESS");
+  }
 	return n;
 }
 

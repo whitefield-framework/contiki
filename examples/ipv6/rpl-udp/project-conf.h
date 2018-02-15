@@ -69,6 +69,6 @@
 #define RPL_CONF_MOP RPL_MOP_NON_STORING /* Mode of operation*/
 #endif /* WITH_NON_STORING */
 
-#define RPL_CONF_WITH_DCO 0
+#define RPL_CONF_WITH_DCO 1
 
 #endif
