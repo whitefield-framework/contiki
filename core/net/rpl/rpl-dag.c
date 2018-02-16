@@ -259,8 +259,7 @@ rpl_set_preferred_parent(rpl_dag_t *dag, rpl_parent_t *p)
 /*---------------------------------------------------------------------------*/
 /* Greater-than function for the lollipop counter.                      */
 /*---------------------------------------------------------------------------*/
-static int
-lollipop_greater_than(int a, int b)
+int lollipop_greater_than(int a, int b)
 {
   /* Check if we are comparing an initial value with an old value */
   if(a > RPL_LOLLIPOP_CIRCULAR_REGION && b <= RPL_LOLLIPOP_CIRCULAR_REGION) {
@@ -1625,6 +1624,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       /* Our parent is requesting a new DAO. Increment DTSN in turn,
        * in both storing and non-storing mode (see RFC6550 section 9.6.) */
       RPL_LOLLIPOP_INCREMENT(instance->dtsn_out);
+#if RPL_WITH_DCO
+      RPL_LOLLIPOP_INCREMENT(path_sequence);
+#endif
       rpl_schedule_dao(instance);
     }
     /* We received a new DIO from our preferred parent.
