@@ -103,7 +103,6 @@ int cmd_route_table(uint16_t id, char *buf, int buflen)
           return n;
       }
   }
-  INFO("cmd_route_table buf:[%s]\n",buf);
 	//LOCK();
 	ADD2BUF(fp, "{ \"route_table\": {\n");
 	ADD2BUF(fp, "\t\"routes\": [\n");

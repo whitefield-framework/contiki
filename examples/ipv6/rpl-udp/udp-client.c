@@ -129,7 +129,6 @@ print_local_addresses(void)
   }
 }
 /*---------------------------------------------------------------------------*/
-static int g_nodeid=0;
 static void
 set_global_address()
 {
@@ -138,9 +137,6 @@ set_global_address()
   uip_ip6addr(&ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
   uip_ds6_set_addr_iid(&ipaddr, &uip_lladdr);
   uip_ds6_addr_add(&ipaddr, 0, ADDR_AUTOCONF);
-
-  uip_ip6addr(&ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0x00ff, 0xfe00, g_nodeid);
-  uip_ds6_addr_add(&ipaddr, 0, ADDR_MANUAL);
 
 /* Mode 2 - 16 bits inline */
   uip_ip6addr(&server_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0x00ff, 0xfe00, 1);
@@ -154,14 +150,10 @@ void set_udp_param(void)
 	if(!ptr) return;
 	g_send_interval = (int)(atof(ptr)*CLOCK_SECOND);
 
-  ptr = getenv("NID");
-  if(ptr) g_nodeid=atoi(ptr);
-  else PRINTF("ERROR: NID is NOT SET THUS downstream UDP traffic wont work\n");
-
   ptr = getenv("UDP_PAYLOAD_LEN");
   if(ptr) g_payload_len = (int)atoi(ptr);
-	PRINTF("UDP NID=%d g_send_interval:%d g_payload_len:%d\n", 
-    g_nodeid, g_send_interval, g_payload_len);
+	PRINTF("UDP g_send_interval:%d g_payload_len:%d\n", 
+    g_send_interval, g_payload_len);
 }
 
 /*---------------------------------------------------------------------------*/

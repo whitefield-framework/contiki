@@ -1539,7 +1539,7 @@ static void dco_input(void)
 		/* If We have the latest path sequence then no need to forward the DCO */
                 PRINTF("Handling DCO Received path seq-%u stored %u\n",
                       pathSequence, pstRoute->state.dao_path_sequence);
-		if (pstNextHop && pathSequence > pstRoute->state.dao_path_sequence){
+		if (pstNextHop && lollipop_greater_than(pathSequence , pstRoute->state.dao_path_sequence)){
                      PRINTF("Forwarding the DCO to");
                      PRINT6ADDR(pstNextHop);
                      PRINTF("\n");
