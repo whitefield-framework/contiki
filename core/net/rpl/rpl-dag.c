@@ -519,6 +519,7 @@ rpl_set_prefix(rpl_dag_t *dag, uip_ipaddr_t *prefix, unsigned len)
   memset(&dag->prefix_info.prefix, 0, sizeof(dag->prefix_info.prefix));
   memcpy(&dag->prefix_info.prefix, prefix, (len + 7) / 8);
   dag->prefix_info.length = len;
+  dag->prefix_info.lifetime = UINT32_MAX;
   dag->prefix_info.flags = UIP_ND6_RA_FLAG_AUTONOMOUS;
   PRINTF("RPL: Prefix set - will announce this in DIOs\n");
   /* Autoconfigure an address if this node does not already have an address
