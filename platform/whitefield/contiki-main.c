@@ -104,12 +104,12 @@ int main(int argc, char **argv)
 	process_start(&etimer_process, NULL);
 	ctimer_init();
 	rtimer_init();
-	if(cl_init(CL_ATTACHQ)!=CL_SUCCESS) {
+	if(cl_init(MTYPE(STACKLINE, gNodeID), CL_ATTACHQ)!=CL_SUCCESS) {
 		ERROR("commline init failed\n");
 		return 1;
 	}
 
-	INFO("Using node id=%d\n", gNodeID);
+	INFO("Using node id=%d sizeof(msg_buf_t):%d\n", gNodeID, (int)sizeof(msg_buf_t));
 	cl_get_id2longaddr(gNodeID, uip_lladdr.addr, sizeof(uip_lladdr.addr));
 	memcpy(linkaddr_node_addr.u8, uip_lladdr.addr, sizeof(linkaddr_node_addr.u8));
 
