@@ -31,7 +31,7 @@
 #define PROJECT_CONF_H_
 
 #ifndef WITH_NON_STORING
-#define WITH_NON_STORING 0 /* Set this to run with non-storing mode */
+#define WITH_NON_STORING 1 /* Set this to run with non-storing mode */
 #endif /* WITH_NON_STORING */
 
 #undef NBR_TABLE_CONF_MAX_NEIGHBORS

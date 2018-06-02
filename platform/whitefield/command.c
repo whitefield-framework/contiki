@@ -1,26 +1,6 @@
 #define	_COMMAND_C_
 
-#include <stdio.h>
-#include <string.h>
-
-#include "contiki.h"
-#include "net/packetbuf.h"
-#include "net/netstack.h"
-#include "net/rpl/rpl-private.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6-route.h"
-
-#define INFO    printf
-#define ERROR   printf
-
-//extern void LOCK(void);
-//extern void UNLOCK(void);
-#define ADD2BUF(FP, ...) \
-    if(FP) {\
-        fprintf(FP, __VA_ARGS__);\
-    } else {\
-        n += snprintf(buf+n, buflen-n, __VA_ARGS__); \
-    }
+#include "command.h"
 
 int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 {
@@ -58,62 +38,6 @@ int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 int cmd_def_route(uint16_t id, char *buf, int buflen)
 {
 	return uip_ipaddr_to_str(uip_ds6_defrt_choose(), buf, buflen);
-}
-
-int get_route_list(FILE *fp, char *buf, int buflen)
-{
-	uip_ds6_route_t *r;
-	char ipstr[128], nhop[128];
-	int n=0, wr_comma=0;
-
-	for(r = uip_ds6_route_head();
-			r != NULL;
-			r = uip_ds6_route_next(r)) {
-		uip_ipaddr_to_str(&r->ipaddr, ipstr, sizeof(ipstr));
-		uip_ipaddr_to_str(uip_ds6_route_nexthop(r), nhop, sizeof(nhop));
-		if(wr_comma) {
-			ADD2BUF(fp, ",");
-		}
-        wr_comma=1;
-		ADD2BUF(fp, "{ \"prefix\": \"%s\", \"pref_len\": \"%d\", \"next_hop\": \"%s\" }\n", 
-			ipstr, r->length, nhop);
-		if(n > buflen-100) {
-			n += snprintf(buf+n, buflen-n, "[TRUNC]");
-			break;
-		}
-	}
-	return n;
-}
-
-int cmd_rtsize(uint16_t id, char *buf, int buflen)
-{
-	return snprintf(buf, buflen, "%d", uip_ds6_route_num_routes());
-}
-
-int cmd_route_table(uint16_t id, char *buf, int buflen)
-{
-	int n=0;
-  FILE *fp=NULL;
-
-  if(buf && buf[0]) {
-      fp = fopen(buf, "wt");
-      if(!fp) {
-          ADD2BUF(fp, "cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
-          ERROR("cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
-          return n;
-      }
-  }
-	//LOCK();
-	ADD2BUF(fp, "{ \"route_table\": {\n");
-	ADD2BUF(fp, "\t\"routes\": [\n");
-	n += get_route_list(fp, buf+n, buflen-n);
-	ADD2BUF(fp, "]\n}}");
-	//UNLOCK();
-  if(fp) {
-    fclose(fp);
-    ADD2BUF(NULL, "SUCCESS");
-  }
-	return n;
 }
 
 int cmd_rpl_stats(uint16_t id, char *buf, int buflen)
@@ -266,5 +190,31 @@ int cmd_config_info(uint16_t id, char *buf, int buflen)
 	ADD2BUF(NULL, "\t\"nbrtable_maxsz\": \"%d\"\n", NBR_TABLE_MAX_NEIGHBORS);
 	ADD2BUF(NULL, "}\n}");
 	return n;
+}
+
+int cmd_route_table(uint16_t id, char *buf, int buflen)
+{
+  int n=0;
+  FILE *fp=NULL;
+
+  if(buf && buf[0]) {
+    fp = fopen(buf, "wt");
+    if(!fp) {
+      ADD2BUF(fp, "cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
+      ERROR("cmd_route_table: COULD NOT WRITE TO FILE:<%s>\n", buf);
+      return n;
+    }
+  }
+  //LOCK();
+  ADD2BUF(fp, "{ \"route_table\": {\n");
+  ADD2BUF(fp, "\t\"routes\": [\n");
+  n += get_route_list(fp, buf+n, buflen-n);
+  ADD2BUF(fp, "]\n}}");
+  //UNLOCK();
+  if(fp) {
+    fclose(fp);
+    ADD2BUF(NULL, "SUCCESS");
+  }
+  return n;
 }
 
