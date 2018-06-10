@@ -109,8 +109,8 @@ void RPL_DEBUG_DAO_OUTPUT(rpl_parent_t *);
 
 static uint8_t dao_sequence = RPL_LOLLIPOP_INIT;
 
-#if RPL_WITH_DCO
 uint8_t path_sequence = RPL_LOLLIPOP_INIT;
+#if RPL_WITH_DCO
 static uint8_t dco_sequence = RPL_LOLLIPOP_INIT;
 #endif
 
@@ -1578,9 +1578,8 @@ static void dco_input(void)
                 }
 	}
 
+discard:
 #endif
-
- discard:
   uip_clear_buf();	
 }
 

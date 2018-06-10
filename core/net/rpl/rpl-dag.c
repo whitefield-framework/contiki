@@ -1554,7 +1554,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   dag->lifetime = (1UL << (instance->dio_intmin + instance->dio_intdoubl)) * RPL_DAG_LIFETIME / 1000;
   PRINTF("RPL: Set dag ");
   PRINT6ADDR(&dag->dag_id);
-  PRINTF(" lifetime to %ld\n", dag->lifetime);
+  PRINTF(" lifetime to %u\n", dag->lifetime);
 
   /*
    * At this point, we know that this DIO pertains to a DAG that

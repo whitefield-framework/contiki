@@ -10,9 +10,7 @@
 #include "net/rpl/rpl-private.h"
 #include "net/ip/uip.h"
 #include "net/ipv6/uip-ds6-route.h"
-
-#define INFO    printf
-#define ERROR   printf
+#include "commline/commline.h"
 
 #define ADD2BUF(FP, ...) \
     if(FP) {\

@@ -7,6 +7,7 @@
 #if RPL_WITH_NON_STORING
 
 #include "net/rpl/rpl-ns.h"
+#include "net/rpl/rpl-route-projection.h"
 
 int get_route_list(FILE *fp, char *buf, int buflen)
 {
@@ -70,27 +71,44 @@ int id2ipaddr(uint16_t id, uip_ipaddr_t *ip)
 #define MAX_RTPRO_KV  5
 int cmd_route_projection(uint16_t id, char *buf, int buflen)
 {
-  uip_ipaddr_t ip;
-  char locbuf[256];
+#define MAX_VIA 10
+  uip_ipaddr_t vip[MAX_VIA];
+  uip_ipaddr_t tgtip, dstip;
+  char tgtstr[128], dststr[128];
   char *key[MAX_RTPRO_KV], *val[MAX_RTPRO_KV];
-  int kv_cnt;
-  char *tgt = NULL;
+  int kv_cnt, via_cnt = 0, ret;
+  char *tgt = NULL, *vialist = NULL, *ltime = NULL, *dst = NULL;
 
   printf("ROUTE PROJECTION:\n%s\n", buf);
 
-  kv_cnt = util_kv_parse(buf, key, val, MAX_RTPRO_KV);
-  tgt = util_kv_get("tgt", key, val, kv_cnt);
+  kv_cnt  = util_kv_parse(buf, key, val, MAX_RTPRO_KV);
+  tgt     = util_kv_get("tgt", key, val, kv_cnt);
+  vialist = util_kv_get("via", key, val, kv_cnt);
+  ltime   = util_kv_get("lt",  key, val, kv_cnt);
+  dst     = util_kv_get("dst", key, val, kv_cnt);
 
-  if(!tgt) {
-    return snprintf(buf, buflen, "Target node not specified");
+  if(!tgt || !vialist || !dst) {
+    return snprintf(buf, buflen, "tgt/via/dst not specified");
   }
 
-  if(id2ipaddr(atoi(tgt), &ip)) {
+  if(id2ipaddr(atoi(tgt), &tgtip)) {
     return snprintf(buf, buflen, "DAG not found");
   }
-  uip_ipaddr_to_str(&ip, locbuf, sizeof(locbuf));
+  uip_ipaddr_to_str(&tgtip, tgtstr, sizeof(tgtstr));
+  id2ipaddr(atoi(dst), &dstip);
+  uip_ipaddr_to_str(&dstip, dststr, sizeof(dststr));
+  
+  while(vialist) {
+    id2ipaddr(atoi(vialist), &vip[via_cnt]);
+    vialist = strchr(vialist, ',');
+    if(vialist) *vialist++ = 0;
+    via_cnt++;
+  }
 
-  return snprintf(buf, buflen, "trying [%s]\n", locbuf);
+  ret = project_dao(&dstip, &tgtip, vip, via_cnt, ltime?atoi(ltime):RPL_DEFAULT_LIFETIME);
+
+  return snprintf(buf, buflen, "dst=%s, tgt=%s, via_cnt=%d, ret=%d\n", 
+            dststr, tgtstr, via_cnt, ret);
 }
 
 #endif
