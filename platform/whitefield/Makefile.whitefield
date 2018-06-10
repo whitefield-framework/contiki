@@ -12,7 +12,7 @@ WF_DIR=../../../../..
 endif
 
 include $(WF_DIR)/config.inc
-CFLAGS+=-I$(WF_DIR)/src/commline
+CFLAGS+=-I$(WF_DIR)/src
 TARGET_LIBFILES+=-L$(WF_DIR)/bin -lwf_commline -ldl
 
 CONTIKI_TARGET_DIRS = . dev

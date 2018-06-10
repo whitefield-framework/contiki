@@ -1,7 +1,8 @@
 #define	_COMMAND_NS_MOP_C_
 
+#include <stdlib.h>
 #include "command.h"
-#include "cl_stackline_helpers.h"
+#include "commline/cl_stackline_helpers.h"
 
 #if RPL_WITH_NON_STORING
 
@@ -40,9 +41,18 @@ int cmd_rtsize(uint16_t id, char *buf, int buflen)
   return snprintf(buf, buflen, "%d", rpl_ns_num_nodes());
 }
 
-void id2ipaddr(rpl_prefix_t *prefix, uint16_t id, uip_ipaddr_t *ip)
+int id2ipaddr(uint16_t id, uip_ipaddr_t *ip)
 {
+  rpl_dag_t *dag;
+  rpl_prefix_t *prefix;
   uip_lladdr_t lladdr;
+
+  // get prefix
+  dag = rpl_get_any_dag();
+  if(!dag) {
+    return 1;
+  }
+  prefix = &dag->prefix_info;
 
   memset(ip, 0, sizeof(uip_ipaddr_t));
 
@@ -54,21 +64,30 @@ void id2ipaddr(rpl_prefix_t *prefix, uint16_t id, uip_ipaddr_t *ip)
 
   // set lower 64 bits to lladdr
   uip_ds6_set_addr_iid(ip, &lladdr);
+  return 0;
 }
 
+#define MAX_RTPRO_KV  5
 int cmd_route_projection(uint16_t id, char *buf, int buflen)
 {
   uip_ipaddr_t ip;
   char locbuf[256];
-  rpl_dag_t *dag;
+  char *key[MAX_RTPRO_KV], *val[MAX_RTPRO_KV];
+  int kv_cnt;
+  char *tgt = NULL;
 
-  // get prefix
-  dag = rpl_get_any_dag();
-  if(!dag)
-  {
+  printf("ROUTE PROJECTION:\n%s\n", buf);
+
+  kv_cnt = util_kv_parse(buf, key, val, MAX_RTPRO_KV);
+  tgt = util_kv_get("tgt", key, val, kv_cnt);
+
+  if(!tgt) {
+    return snprintf(buf, buflen, "Target node not specified");
+  }
+
+  if(id2ipaddr(atoi(tgt), &ip)) {
     return snprintf(buf, buflen, "DAG not found");
   }
-  id2ipaddr(&dag->prefix_info, 4, &ip);
   uip_ipaddr_to_str(&ip, locbuf, sizeof(locbuf));
 
   return snprintf(buf, buflen, "trying [%s]\n", locbuf);
