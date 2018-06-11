@@ -109,6 +109,15 @@
 #endif
 
 /*
+ * Support for draft-ietf-roll-dao-projection-03
+ */
+#ifdef RPL_CONF_ROUTE_PROJECTION
+#define RPL_ROUTE_PROJECTION RPL_CONF_ROUTE_PROJECTION
+#else
+#define RPL_ROUTE_PROJECTION 0
+#endif
+
+/*
  * Maximum of concurent RPL instances.
  */
 #ifdef RPL_CONF_MAX_INSTANCES

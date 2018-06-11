@@ -16,7 +16,7 @@
 #include "lib/list.h"
 #include "lib/memb.h"
 
-#if RPL_WITH_NON_STORING
+#if RPL_WITH_NON_STORING && RPL_ROUTE_PROJECTION
 
 #define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
@@ -75,16 +75,6 @@ int project_dao(uip_ipaddr_t *dstip, uip_ipaddr_t *tgtip, uip_ipaddr_t *via_arr,
   memcpy(buffer + pos, tgtip, (prefixlen + 7) / CHAR_BIT);
   pos += ((prefixlen + 7) / CHAR_BIT);
 
-#if 0
-  /* Create a transit information sub-option. */
-  buffer[pos++] = RPL_OPTION_TRANSIT;
-  buffer[pos++] = (instance->mop != RPL_MOP_NON_STORING) ? 4 : 20;
-  buffer[pos++] = 0; /* flags - ignored */
-  buffer[pos++] = 0; /* path control - ignored */
-  RPL_LOLLIPOP_INCREMENT(path_sequence);
-  buffer[pos++] = path_sequence; /* path seq - ignored */
-  buffer[pos++] = lifetime;
-#endif
   buffer[pos++] = RPL_OPTION_VIA_INFORMATION;
   buffer[pos++] = (via_cnt * 16)+2; //16B per via ip + 2B (for path seq, path ltime)
   RPL_LOLLIPOP_INCREMENT(path_sequence);
@@ -115,4 +105,4 @@ int project_dao(uip_ipaddr_t *dstip, uip_ipaddr_t *tgtip, uip_ipaddr_t *via_arr,
 }
 /*---------------------------------------------------------------------------*/
 
-#endif /* RPL_WITH_NON_STORING */
+#endif /* RPL_WITH_NON_STORING && RPL_ROUTE_PROJECTION */

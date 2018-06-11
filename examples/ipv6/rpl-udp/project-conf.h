@@ -70,5 +70,6 @@
 #endif /* WITH_NON_STORING */
 
 #define RPL_CONF_WITH_DCO 0
+#define RPL_CONF_ROUTE_PROJECTION 1
 
 #endif

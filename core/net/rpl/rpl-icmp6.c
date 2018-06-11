@@ -1042,6 +1042,37 @@ dao_input_nonstoring(void)
           memcpy(&dao_parent_addr, buffer + i + 6, 16);
         }
         break;
+#if RPL_ROUTE_PROJECTION
+      case RPL_OPTION_VIA_INFORMATION:
+        {
+          uip_ipaddr_t parent_ip, via;
+          lifetime = buffer[i+3];
+          pos = 4;
+          PRINTF("via lifetime=%u\n", lifetime);
+          uip_ipaddr_copy(&parent_ip, &UIP_IP_BUF->destipaddr);
+          while(len-pos > 0)
+          {
+            memcpy(&via, &buffer[i+pos], sizeof(via));
+            PRINTF("VIA adding target ");
+            PRINT6ADDR(&via);
+            PRINTF(", parent: ");
+            PRINT6ADDR(&parent_ip);
+            PRINTF("\n");
+            pos += 16;
+            if(lifetime == RPL_ZERO_LIFETIME) {
+              rpl_ns_expire_parent(dag, &via, &parent_ip);
+            } else {
+              if(rpl_ns_update_node(dag, &via, &parent_ip, RPL_LIFETIME(instance, lifetime)) == NULL) {
+                PRINTF("RPL: failed to add link\n");
+                return;
+              }
+            }
+            uip_ipaddr_copy(&parent_ip, &via);
+          }
+          uip_ipaddr_copy(&dao_parent_addr, &parent_ip);
+        }
+        break;
+#endif
     }
   }
 
