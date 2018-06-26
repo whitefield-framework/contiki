@@ -1,7 +1,19 @@
 #define	_COMMAND_C_
 
 #include "command.h"
+#include "udp-app.h"
+//PROCESS_NAME(udp_client_process);
+int cmd_start_udp(uint16_t id, char *buf, int buflen)
+{
 
+  /* Just stsrt the periodic timer to send UDP traffic */
+  int n=0;
+  //process_start(&udp_client_process, NULL);
+  start_udp_process();
+  ADD2BUF(NULL, "UDP Client Sucess");
+  return n;
+  
+} 
 int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 {
 #if NETSTACK_CONF_WITH_IPV6

@@ -526,6 +526,28 @@ tcpip_input(void)
 }
 /*---------------------------------------------------------------------------*/
 #if NETSTACK_CONF_WITH_IPV6
+
+uip_ipaddr_t *tcpip_ipv6_find_nexthop(uip_ipaddr_t *destipaddr)
+{
+  uip_ipaddr_t *nexthop = NULL;
+  uip_ds6_route_t *route;
+  
+  if(uip_ds6_is_addr_onlink(destipaddr)){
+      nexthop = destipaddr;
+  }
+  else{
+    route = uip_ds6_route_lookup(destipaddr);
+    if (route == NULL){
+      nexthop = uip_ds6_defrt_choose();
+    }
+    else{
+      nexthop = uip_ds6_route_nexthop(route);
+    }
+  }
+
+  return nexthop;  
+}
+
 void
 tcpip_ipv6_output(void)
 {

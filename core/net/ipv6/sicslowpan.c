@@ -69,10 +69,11 @@
 #include "net/rime/rime.h"
 #include "net/ipv6/sicslowpan.h"
 #include "net/netstack.h"
+#include "rpl-dag-root.h"
 
 #include <stdio.h>
 
-#define DEBUG DEBUG_NONE
+#define DEBUG 1 //DEBUG_PRINT
 #include "net/ip/uip-debug.h"
 #if DEBUG
 /* PRINTFI and PRINTFO are defined for input and output to debug one without changing the timing of the other */
@@ -100,6 +101,12 @@ void uip_log(char *msg);
 #define SICSLOWPAN_COMPRESSION SICSLOWPAN_COMPRESSION_IPV6
 #endif /* SICSLOWPAN_CONF_COMPRESSION */
 #endif /* SICSLOWPAN_COMPRESSION */
+
+#ifdef SCSLOWPAN_CONF_FRAG_FORWARDING
+#define SCSLOWPAN_FRAG_FORWARDING SCSLOWPAN_CONF_FRAG_FORWARDING
+#else
+#define SCSLOWPAN_FRAG_FORWARDING 0
+#endif
 
 #define GET16(ptr,index) (((uint16_t)((ptr)[index] << 8)) | ((ptr)[(index) + 1]))
 #define SET16(ptr,index,value) do {     \
@@ -218,7 +225,29 @@ static int last_rssi;
 /* ----------------------------------------------------------------- */
 
 #if SICSLOWPAN_CONF_FRAG
-static uint16_t my_tag;
+
+typedef struct vrb_entry
+{
+	struct vrb_entry *next;
+	struct vrb_entry *peer;
+	linkaddr_t linklayerAddr;
+	uint16_t dgramtag;
+  uint16_t bytesForwarded;
+}vrb_entry_t;
+
+typedef struct lowpan_vrb
+{
+	vrb_entry_t stSrcVrbEntry;
+	vrb_entry_t stDestVrbEntry;
+}lowpan_vrb_t;
+
+LIST(incoming_vrb_list);
+LIST(outgoing_vrb_list);
+
+MEMB(vrbmemb, lowpan_vrb_t, NBR_TABLE_MAX_NEIGHBORS);
+
+static uint16_t my_tag = 0;
+static uint16_t frag_forward_tag = 100;
 
 /** The total length of the IPv6 packet in the sicslowpan_buf. */
 
@@ -337,6 +366,7 @@ store_fragment(uint8_t index, uint8_t offset)
       return frag_buf[i].len;
     }
   }
+
   /* failed */
   return -1;
 }
@@ -354,7 +384,7 @@ add_fragment(uint16_t tag, uint16_t frag_size, uint8_t offset)
     for(i = 0; i < SICSLOWPAN_REASS_CONTEXTS; i++) {
       /* clear all fragment info with expired timer to free all fragment buffers */
       if(frag_info[i].len > 0 && timer_expired(&frag_info[i].reass_timer)) {
-	clear_fragments(i);
+      	clear_fragments(i);
       }
 
       /* We use len as indication on used or not used */
@@ -568,6 +598,15 @@ addr_context_lookup_by_number(uint8_t number)
   }
 #endif /* SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0 */
   return NULL;
+}
+
+static uint8_t is_frag_forward_enabled()
+{
+#if SCSLOWPAN_FRAG_FORWARDING
+	return 1;
+#else
+	return 0;
+#endif
 }
 /*--------------------------------------------------------------------*/
 static uint8_t
@@ -996,7 +1035,7 @@ uncompress_hdr_iphc(uint8_t *buf, uint16_t ip_len)
       /* Version and flow label are compressed */
       if((iphc0 & SICSLOWPAN_IPHC_TC_C) == 0) {
         /* Traffic class is inline */
-	SICSLOWPAN_IP_BUF(buf)->vtc = 0x60 | ((*hc06_ptr >> 2) & 0x0f);
+	      SICSLOWPAN_IP_BUF(buf)->vtc = 0x60 | ((*hc06_ptr >> 2) & 0x0f);
           SICSLOWPAN_IP_BUF(buf)->tcflow = ((*hc06_ptr << 6) & 0xC0) | ((*hc06_ptr >> 2) & 0x30);
           SICSLOWPAN_IP_BUF(buf)->flow = 0;
           hc06_ptr += 1;
@@ -1261,6 +1300,259 @@ send_packet(linkaddr_t *dest)
      watchdog know that we are still alive. */
   watchdog_periodic();
 }
+
+#if SICSLOWPAN_CONF_FRAG
+const uip_lladdr_t *sicslowpan_find_nexthopll(uint16_t frag_size)
+{
+  uint8_t *buffer;
+  buffer = (uint8_t *)UIP_IP_BUF;
+  uip_ipaddr_t *nexthop = NULL;
+  const uip_lladdr_t *lladdress;
+  uint16_t payload_length;
+  
+
+#if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_HC06
+  if((PACKETBUF_HC1_PTR[PACKETBUF_HC1_DISPATCH] & 0xe0) == SICSLOWPAN_DISPATCH_IPHC) {
+    PRINTFI("sicslowpan input: IPHC\n");
+    uncompress_hdr_iphc(buffer, frag_size);
+
+    /* Here Copy the Rest of the packet to the Buffer */
+    payload_length = packetbuf_datalen() - packetbuf_hdr_len;
+    memcpy(buffer + uncomp_hdr_len, packetbuf_ptr+packetbuf_hdr_len, payload_length);
+    
+    UIP_IP_BUF->ttl = UIP_IP_BUF->ttl - 1;
+    uip_len = uncomp_hdr_len + payload_length;
+  }
+
+  PRINT6ADDR(&UIP_IP_BUF->destipaddr);
+  if (uip_ds6_is_my_addr(&UIP_IP_BUF->destipaddr)){
+    PRINTF("Its My Address\n");
+  }
+
+  if(!uip_ds6_is_my_addr(&UIP_IP_BUF->destipaddr) && !uip_is_addr_mcast(&UIP_IP_BUF->destipaddr)){
+    /* We need to find the nexthop to do the fragmenttaion forwarding*/
+    nexthop = tcpip_ipv6_find_nexthop(&UIP_IP_BUF->destipaddr);
+    if (NULL == nexthop){
+      uip_len = 0;
+      return NULL;
+    }
+    
+    PRINT6ADDR(nexthop);
+    /* Reduce the HOP Limit */
+
+    lladdress = uip_ds6_nbr_lladdr_from_ipaddr(nexthop);
+    /* Do a compression of the received fragment */
+    if (lladdress){
+      uncomp_hdr_len = 0;
+      packetbuf_hdr_len =0;
+      packetbuf_clear();
+      packetbuf_ptr = packetbuf_dataptr();
+      compress_hdr_iphc((linkaddr_t *)lladdress);      
+    }
+		else{
+			uip_len = 0; 
+		}
+  }
+    
+  return lladdress;
+
+#endif 
+  return NULL;
+}
+
+lowpan_vrb_t *sicslowpan_find_outgoing_vrbiface
+(
+ linkaddr_t *pstIncomingLLAddr,
+ linkaddr_t *outgoingll,
+ uint16_t incoming_tag,
+ uint8_t isAck,
+ uint8_t isFirstFrag
+)
+{
+  vrb_entry_t *pstIter;
+  lowpan_vrb_t *pstNew;
+  uint8_t isOutGoing = 0;
+
+  if (isAck){
+    pstIter = list_head(outgoing_vrb_list);
+    isOutGoing = 1;
+  }
+  else{
+    pstIter = list_head(incoming_vrb_list);
+  }
+
+  for (; pstIter != NULL; pstIter = list_item_next(pstIter)){
+    if (linkaddr_cmp(pstIncomingLLAddr, &pstIter->linklayerAddr)){
+      
+      /* Found a Match Return the peer */
+      /* Check the tag to find if its part of same message or a new message */
+      if (incoming_tag == pstIter->dgramtag){
+        PRINTF("Found matching outgoing interface\n");
+        if (isOutGoing){
+          return (lowpan_vrb_t *)((unsigned char *)pstIter->peer);
+        }
+        return (lowpan_vrb_t *)((unsigned char *)pstIter);
+      }
+      else{
+        PRINTF("Found one VRB entry with old data gram tag will update the "
+        "info\n");
+        if (isOutGoing){
+          pstNew = (lowpan_vrb_t *)((unsigned char *)pstIter->peer);
+        }else{
+          pstNew = (lowpan_vrb_t *)((unsigned char *)pstIter);
+        }
+    
+        memset(pstNew, 0, sizeof(lowpan_vrb_t));
+        pstNew->stSrcVrbEntry.dgramtag = incoming_tag;
+        linkaddr_copy(&(pstNew->stSrcVrbEntry.linklayerAddr), pstIncomingLLAddr);        
+        linkaddr_copy(&(pstNew->stDestVrbEntry.linklayerAddr), outgoingll);
+        pstNew->stDestVrbEntry.dgramtag = ++frag_forward_tag;
+        PRINTF("Updated existing VRB entry successfully\n");
+        return pstNew;
+      }
+    }
+  }
+
+  PRINTF("Didn't Find the outgoing VRB \n");
+
+  /* Didn't find an Entry if its for the first fragment allocate the entry */
+  if (!isAck && isFirstFrag){
+    pstNew = (lowpan_vrb_t *)memb_alloc(&vrbmemb);
+    if (NULL == pstNew){
+			PRINTF("Failed to create new VRB\n");
+      return NULL;
+    }
+
+    memset(pstNew, 0, sizeof(lowpan_vrb_t));
+    pstNew->stSrcVrbEntry.dgramtag = incoming_tag;
+    linkaddr_copy(&(pstNew->stSrcVrbEntry.linklayerAddr), pstIncomingLLAddr);
+    pstNew->stSrcVrbEntry.peer = &(pstNew->stDestVrbEntry);
+    pstNew->stDestVrbEntry.peer = &(pstNew->stSrcVrbEntry);
+    list_add(incoming_vrb_list,(void *)&(pstNew->stSrcVrbEntry));
+
+    linkaddr_copy(&(pstNew->stDestVrbEntry.linklayerAddr), outgoingll);
+    pstNew->stDestVrbEntry.dgramtag = ++frag_forward_tag;
+
+    list_add(outgoing_vrb_list, (void *)&(pstNew->stDestVrbEntry));
+    PRINTF("Created new VRB entry successfully\n");
+    return pstNew;
+  }
+  else{
+    PRINTF("Received fragments out of order\n");
+  }
+
+  return NULL;
+}
+
+void sicslowpan_free_vrb(lowpan_vrb_t *pstVrb)
+{
+  list_remove(incoming_vrb_list,(void *)&(pstVrb->stSrcVrbEntry));
+  list_remove(outgoing_vrb_list,(void *)&(pstVrb->stDestVrbEntry));
+
+  memb_free(&vrbmemb, pstVrb);
+}
+void sicslowpan_send_fragment(vrb_entry_t *outGoingIface , int16_t frag_size, uint8_t isFirstFrag)
+{
+	int max_payload;
+	int framer_hdrlen;
+	
+
+	if (isFirstFrag){
+		uint8_t *buffer;
+		uint16_t processed_ip_out_len;
+  	buffer = (uint8_t *)UIP_IP_BUF;
+#ifndef SICSLOWPAN_USE_FIXED_HDRLEN	
+		framer_hdrlen = NETSTACK_FRAMER.length();
+  	if(framer_hdrlen < 0) {
+    	/* Framing failed, we assume the maximum header length */
+    	framer_hdrlen = SICSLOWPAN_FIXED_HDRLEN;
+  	}
+#else /* USE_FRAMER_HDRLEN */
+  	framer_hdrlen = SICSLOWPAN_FIXED_HDRLEN;
+#endif /* USE_FRAMER_HDRLEN */
+
+  	max_payload = MAC_MAX_PAYLOAD - framer_hdrlen;
+    if((int)uip_len - (int)uncomp_hdr_len > max_payload - (int)packetbuf_hdr_len) {
+			/* Do Fragmentation Further */
+			int estimated_fragments = ((int)uip_len) / (max_payload - SICSLOWPAN_FRAGN_HDR_LEN) + 1;
+      PRINTF("First fragment will be further devided to the [%d] fragments\n",estimated_fragments);
+
+			/* move IPHC/IPv6 header */
+    	memmove(packetbuf_ptr + SICSLOWPAN_FRAG1_HDR_LEN, packetbuf_ptr, packetbuf_hdr_len);
+
+    	/*
+     	* FRAG1 dispatch + header
+     	* Note that the length is in units of 8 bytes
+     	*/
+			/*     PACKETBUF_FRAG_BUF->dispatch_size = */
+			/*       uip_htons((SICSLOWPAN_DISPATCH_FRAG1 << 8) | uip_len); */
+    	SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE,
+          ((SICSLOWPAN_DISPATCH_FRAG1 << 8) | frag_size));
+
+    	SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_TAG, outGoingIface->dgramtag);
+
+    	/* Copy payload and send */
+    	packetbuf_hdr_len += SICSLOWPAN_FRAG1_HDR_LEN;
+    	packetbuf_payload_len = (max_payload - packetbuf_hdr_len) & 0xfffffff8;
+			
+    	PRINTFO("(len %d, tag %d)\n", packetbuf_payload_len, outGoingIface->dgramtag);
+    	memcpy(packetbuf_ptr + packetbuf_hdr_len,
+           (uint8_t *)buffer + uncomp_hdr_len, packetbuf_payload_len);
+    	packetbuf_set_datalen(packetbuf_payload_len + packetbuf_hdr_len);
+			send_packet(&outGoingIface->linklayerAddr);
+
+			processed_ip_out_len = packetbuf_payload_len + uncomp_hdr_len;
+
+    /*
+     * Create following fragments
+     * Datagram tag is already in the buffer, we need to set the
+     * FRAGN dispatch and for each fragment, the offset
+     */
+    	packetbuf_hdr_len = SICSLOWPAN_FRAGN_HDR_LEN;
+/*     PACKETBUF_FRAG_BUF->dispatch_size = */
+/*       uip_htons((SICSLOWPAN_DISPATCH_FRAGN << 8) | uip_len); */
+    	SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE,
+          ((SICSLOWPAN_DISPATCH_FRAGN << 8) | frag_size));
+    	packetbuf_payload_len = (max_payload - packetbuf_hdr_len) & 0xfffffff8;
+    	while(processed_ip_out_len < uip_len) {
+      	PRINTFO("sicslowpan output: fragment ");
+      	PACKETBUF_FRAG_PTR[PACKETBUF_FRAG_OFFSET] = processed_ip_out_len >> 3;
+
+      	/* Copy payload and send */
+      	if(uip_len - processed_ip_out_len < packetbuf_payload_len) {
+        	/* last fragment */
+        	packetbuf_payload_len = uip_len - processed_ip_out_len;
+      	}
+				
+      	PRINTFO("(offset %d, len %d, tag %d)\n",
+             processed_ip_out_len >> 3, packetbuf_payload_len, outGoingIface->dgramtag);
+      	memcpy(packetbuf_ptr + packetbuf_hdr_len,
+             (uint8_t *)buffer + processed_ip_out_len, packetbuf_payload_len);
+      	packetbuf_set_datalen(packetbuf_payload_len + packetbuf_hdr_len);
+
+				processed_ip_out_len = processed_ip_out_len + packetbuf_payload_len;
+      	
+      	send_packet(&outGoingIface->linklayerAddr);
+    	}
+    }
+		else{
+			memmove(packetbuf_ptr + SICSLOWPAN_FRAG1_HDR_LEN, packetbuf_ptr, packetbuf_hdr_len);
+    	SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE,((SICSLOWPAN_DISPATCH_FRAG1<<8)|frag_size));
+    	packetbuf_hdr_len += SICSLOWPAN_FRAG1_HDR_LEN;
+    	memcpy(packetbuf_ptr+packetbuf_hdr_len, buffer+uncomp_hdr_len, uip_len-uncomp_hdr_len);
+    	packetbuf_set_datalen(packetbuf_hdr_len+ (uip_len-uncomp_hdr_len));
+			SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_TAG, outGoingIface->dgramtag);
+			send_packet(&outGoingIface->linklayerAddr);
+		}
+	}
+	else{
+		SET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_TAG, outGoingIface->dgramtag);
+		send_packet(&outGoingIface->linklayerAddr);
+	}
+
+	uip_len = 0;
+}
+#endif
 /*--------------------------------------------------------------------*/
 /** \brief Take an IP packet and format it to be sent on an 802.15.4
  *  network using 6lowpan.
@@ -1409,6 +1701,8 @@ output(const uip_lladdr_t *localdest)
       PRINTFO("could not allocate queuebuf for first fragment, dropping packet\n");
       return 0;
     }
+
+    
     send_packet(&dest);
     queuebuf_to_packetbuf(q);
     queuebuf_free(q);
@@ -1515,11 +1809,16 @@ input(void)
   /* tag of the fragment */
   uint16_t frag_tag = 0;
   uint8_t first_fragment = 0, last_fragment = 0;
+#if SCSLOWPAN_FRAG_FORWARDING
+  vrb_entry_t *outgoingvrb = NULL;
+  lowpan_vrb_t *vrb;
+  const uip_lladdr_t *lladdress = NULL;
+#endif  
 #endif /*SICSLOWPAN_CONF_FRAG*/
 
   /* Update link statistics */
   link_stats_input_callback(packetbuf_addr(PACKETBUF_ADDR_SENDER));
-
+  PRINTF("Inside 6lowinput\n");
   /* init */
   uncomp_hdr_len = 0;
   packetbuf_hdr_len = 0;
@@ -1555,6 +1854,34 @@ input(void)
       first_fragment = 1;
       is_fragment = 1;
 
+#if SCSLOWPAN_FRAG_FORWARDING
+      if (!rpl_dag_root_is_root()){
+      linkaddr_t stSenderLL;
+			PRINTF("Sicslowpan Frag Forwarding\n");
+      memcpy(&stSenderLL, (linkaddr_t *)packetbuf_addr(PACKETBUF_ADDR_SENDER), sizeof(linkaddr_t));
+
+      lladdress = sicslowpan_find_nexthopll(frag_size);
+      PRINTF("\nll Addr[%p]\n",lladdress);
+      if (lladdress){
+
+        vrb = 
+        sicslowpan_find_outgoing_vrbiface(&stSenderLL,
+                  (linkaddr_t *)lladdress, frag_tag, 0, first_fragment);
+        if (vrb){
+          /* Update the Fragment tag and forward the fragment*/
+          /* Update the Number of bytes forwarded */
+          outgoingvrb = &(vrb->stDestVrbEntry);
+          outgoingvrb->bytesForwarded = uip_len;
+          PRINTF("Forwarding Fragment With TAG-%u\n",outgoingvrb->dgramtag);
+          goto FORWARD_FRAGMENT;
+        }
+				else{
+					PRINTF("Didn't Find the outgoing VRB so will store the frag\n");
+				}
+       }
+      }
+
+#endif
       /* Add the fragment to the fragmentation context */
       frag_context = add_fragment(frag_tag, frag_size, frag_offset);
 
@@ -1562,7 +1889,7 @@ input(void)
         return;
       }
 
-      buffer = frag_info[frag_context].first_frag;
+      buffer = frag_info[frag_context].first_frag;	  
 
       break;
     case SICSLOWPAN_DISPATCH_FRAGN:
@@ -1582,6 +1909,22 @@ input(void)
          bytes at the end. We must be liberal in what we accept. */
       PRINTFI("last_fragment?: packetbuf_payload_len %d frag_size %d\n",
               packetbuf_datalen() - packetbuf_hdr_len, frag_size);
+
+#if SCSLOWPAN_FRAG_FORWARDING   
+            if (!rpl_dag_root_is_root()){   
+              vrb = 
+              sicslowpan_find_outgoing_vrbiface((linkaddr_t *)packetbuf_addr(PACKETBUF_ADDR_SENDER),
+                        (linkaddr_t *)lladdress, frag_tag, 0, first_fragment);
+              if (vrb){
+                /* Update the Fragment tag and forward the fragment*/
+                outgoingvrb = &(vrb->stDestVrbEntry);
+                outgoingvrb->bytesForwarded += (packetbuf_datalen() - 
+                packetbuf_hdr_len);
+                PRINTF("Forwarding Fragment With TAG-%u\n",outgoingvrb->dgramtag);
+                goto FORWARD_FRAGMENT;
+              }
+            }
+#endif
 
       /* Add the fragment to the fragmentation context (this will also
          copy the payload) */
@@ -1713,7 +2056,10 @@ input(void)
       PRINTF("after decompression %u:", UIP_IP_BUF->len[1]);
       for (ndx = 0; ndx < UIP_IP_BUF->len[1] + 40; ndx++) {
         uint8_t data = ((uint8_t *) (UIP_IP_BUF))[ndx];
-        PRINTF("%02x", data);
+        if (ndx > 0 && (ndx%20 == 0)){
+          PRINTF("\n");
+        }
+        PRINTF("%02x ", data);
       }
       PRINTF("\n");
     }
@@ -1727,6 +2073,16 @@ input(void)
 
     tcpip_input();
 #if SICSLOWPAN_CONF_FRAG
+#if SCSLOWPAN_FRAG_FORWARDING
+  FORWARD_FRAGMENT:
+  if (outgoingvrb){
+  	sicslowpan_send_fragment(outgoingvrb, frag_size, first_fragment);
+    if (outgoingvrb->bytesForwarded >= frag_size){
+      PRINTF("One complete packet is forwarded\n");
+      sicslowpan_free_vrb(vrb);
+    }
+  }
+#endif  
   }
 #endif /* SICSLOWPAN_CONF_FRAG */
 }
@@ -1744,6 +2100,12 @@ sicslowpan_init(void)
    */
 
   tcpip_set_outputfunc(output);
+
+#if SCSLOWPAN_FRAG_FORWARDING
+  memb_init(&vrbmemb);
+  list_init(incoming_vrb_list);
+  list_init(outgoing_vrb_list);
+#endif
 
 #if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_HC06
 /* Preinitialize any address contexts for better header compression

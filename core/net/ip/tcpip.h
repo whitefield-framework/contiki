@@ -353,6 +353,7 @@ void tcpip_set_outputfunc(uint8_t (* f)(void));
  */
 #if NETSTACK_CONF_WITH_IPV6
 void tcpip_ipv6_output(void);
+uip_ipaddr_t *tcpip_ipv6_find_nexthop(uip_ipaddr_t *destipaddr);
 #endif
 
 /**
