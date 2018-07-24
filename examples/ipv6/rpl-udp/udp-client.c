@@ -30,6 +30,7 @@
 #include "contiki.h"
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include "lib/random.h"
 #include "sys/ctimer.h"
 #include "net/ip/uip.h"
@@ -93,17 +94,20 @@ static void
 send_packet(void *ptr)
 {
   char buf[MAX_PAYLOAD_LEN];
-	dpkt_t *pkt=(dpkt_t*)buf;
+  dpkt_t *pkt=(dpkt_t*)buf;
 
-	if(sizeof(buf) < sizeof(pkt)+g_payload_len) {
-		printf("buffer size mismatch .. expect no UDP pkt\n");
-		return;
-	}
+  if(sizeof(buf) < sizeof(pkt)+g_payload_len) {
+    printf("buffer size mismatch .. expect no UDP pkt\n");
+    return;
+  }
 
   seq_id++;
-	pkt->seq = seq_id;
+  pkt->seq = seq_id;
+  gettimeofday(&(pkt->sendTime), NULL);
+
   PRINTF("DATA send to %d 'Hello %d'\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
+
   uip_udp_packet_sendto(client_conn, buf, sizeof(pkt)+g_payload_len,
                         &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
 }
@@ -143,12 +147,24 @@ set_global_address()
 }
 
 int g_send_interval=0;
-
+int g_auto_start = 1;
 void set_udp_param(void)
 {
-	char *ptr = getenv("UDP_SEND_INT");
-	if(!ptr) return;
-	g_send_interval = (int)(atof(ptr)*CLOCK_SECOND);
+  char *ptr = getenv("UDPCLI_SEND_INT");
+  if(!ptr){
+    PRINTF("UDP_SEND_INT env var not found\n");
+    return;
+  }
+
+  g_send_interval = (int)(atof(ptr)*CLOCK_SECOND);
+
+  char *ptr1 = getenv("AUTO_START");
+  if(!ptr1){
+    PRINTF("AUTO_START env var not found\n");
+    return;
+  }
+
+  g_auto_start = (int)(atof(ptr1));
 
   ptr = getenv("UDP_PAYLOAD_LEN");
   if(ptr) g_payload_len = (int)atoi(ptr);
@@ -156,10 +172,12 @@ void set_udp_param(void)
     g_send_interval, g_payload_len);
 }
 
+static struct etimer periodic;
+int udp_started = 0;
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(udp_client_process, ev, data)
 {
-  static struct etimer periodic;
+  //static struct etimer periodic;
   static struct ctimer backoff_timer;
 
   PROCESS_BEGIN();
@@ -167,7 +185,9 @@ PROCESS_THREAD(udp_client_process, ev, data)
   PROCESS_PAUSE();
 
   set_global_address();
-	set_udp_param();
+  set_udp_param();
+  
+  PRINTF("UDP Client Auto start[%d] and iterval[%d]\n",g_auto_start, g_send_interval);
 
   PRINTF("UDP client process started nbr:%d routes:%d\n",
          NBR_TABLE_CONF_MAX_NEIGHBORS, UIP_CONF_MAX_ROUTES);
@@ -187,21 +207,41 @@ PROCESS_THREAD(udp_client_process, ev, data)
   PRINTF(" local/remote port %u/%u\n",
 	UIP_HTONS(client_conn->lport), UIP_HTONS(client_conn->rport));
 
-  if(g_send_interval > 0)
+  if(g_send_interval > 0){
     etimer_set(&periodic, g_send_interval);
+    udp_started = 1;
+  }
+  
+  PRINTF("Will enter to while\n");
   while(1) {
+    PRINTF("Will call PROCESS Yield\n");
     PROCESS_YIELD();
+    PRINTF("PROCESS Yield exited\n");
     if(ev == tcpip_event) {
       tcpip_handler();
     }
 
+    PRINTF("udp_started[%d]\n", udp_started);
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
+      PRINTF("Timer Expired [%d]\n",g_auto_start);
 			//send_packet(NULL);
-      ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+      if (g_auto_start){
+       ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+      }
     }
   }
-
+  PRINTF("Process Stopped\n");
   PROCESS_END();
+}
+
+void start_udp_process()
+{
+  PRINTF("Need to start the UDP process\n ");
+  if(!g_auto_start && g_send_interval > 0){
+    udp_started = 1;
+    g_auto_start = 1;
+    PRINTF("Started the UDP process[%d]\n", g_send_interval);
+  }
 }
 /*---------------------------------------------------------------------------*/

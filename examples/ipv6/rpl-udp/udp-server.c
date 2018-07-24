@@ -64,6 +64,7 @@ typedef struct _dpkt_stat_
 	uint32_t dropcnt;
 	uint32_t unordered;
 	uint32_t rcvcnt;
+    long leastLatency;
 }dpkt_stat_t;
 
 dpkt_stat_t g_dstats[MAX_NODES];
@@ -83,31 +84,54 @@ dpkt_stat_t *get_dpkt_stat(uip_ipaddr_t *srcip)
 	return NULL;
 }
 
+long dpkt_latency_time(struct timeval *tv)
+{
+  long duration=0;
+  struct timeval curTime;
+  gettimeofday(&curTime, NULL);
+
+  if (curTime.tv_sec > tv->tv_sec){
+    duration = (curTime.tv_sec - tv->tv_sec) * 1000000;
+  }
+
+  if (curTime.tv_usec > tv->tv_usec){
+    duration += (curTime.tv_usec - tv->tv_usec); 
+  }
+
+  return duration;
+}
+
 /*---------------------------------------------------------------------------*/
 static void
 tcpip_handler(void)
 {
-	dpkt_t *pkt;
-	dpkt_stat_t *ds;
+  dpkt_t *pkt;
+  dpkt_stat_t *ds;
 
   if(!uip_newdata()) {
-		return;
-	}
-	pkt = (dpkt_t *)uip_appdata;
-	ds = get_dpkt_stat(&(UIP_IP_BUF->srcipaddr));
-	if(!ds) {
-		if(g_ds_cnt>=MAX_NODES) {
-			printf("dstats exceeded!\n");
-			return;
-		}
+    return;
+  }
+
+  pkt = (dpkt_t *)uip_appdata;
+  ds = get_dpkt_stat(&(UIP_IP_BUF->srcipaddr));
+  if(!ds) {
+    if(g_ds_cnt>=MAX_NODES) {
+      printf("dstats exceeded!\n");
+      return;
+    }
     ds = &g_dstats[g_ds_cnt++];
-		ds->ip = UIP_IP_BUF->srcipaddr;
-	}
-	if(pkt->seq < ds->lastseq) {
-		ds->dropcnt++;
-	}
-	ds->rcvcnt++;
-	ds->lastseq = pkt->seq;
+    ds->ip = UIP_IP_BUF->srcipaddr;
+  }
+
+  if(pkt->seq < ds->lastseq) {
+    ds->dropcnt++;
+  }
+
+  ds->rcvcnt++;
+  ds->lastseq = pkt->seq;
+  ds->leastLatency = dpkt_latency_time(&(pkt->sendTime));
+  PRINTF("DATA Received from [%d] with seq[%d] in duration[%ld mus]\n",
+         ds->ip.u8[sizeof(ds->ip.u8) - 1], pkt->seq, ds->leastLatency);
 
 #if SERVER_REPLY
 	PRINTF("DATA sending reply\n");
@@ -212,6 +236,7 @@ PROCESS_THREAD(udp_server_process, ev, data)
     PROCESS_YIELD();
     if(ev == tcpip_event) {
       tcpip_handler();
+      PRINTF("Received TCPIP Event\n");
     } else if (ev == sensors_event && data == &button_sensor) {
       PRINTF("Initiaing global repair\n");
       rpl_repair_root(RPL_DEFAULT_INSTANCE);
@@ -219,5 +244,10 @@ PROCESS_THREAD(udp_server_process, ev, data)
   }
 
   PROCESS_END();
+}
+
+void start_udp_process()
+{
+   return;
 }
 /*---------------------------------------------------------------------------*/

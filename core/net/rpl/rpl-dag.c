@@ -259,7 +259,8 @@ rpl_set_preferred_parent(rpl_dag_t *dag, rpl_parent_t *p)
 /*---------------------------------------------------------------------------*/
 /* Greater-than function for the lollipop counter.                      */
 /*---------------------------------------------------------------------------*/
-int lollipop_greater_than(int a, int b)
+int
+lollipop_greater_than(int a, int b)
 {
   /* Check if we are comparing an initial value with an old value */
   if(a > RPL_LOLLIPOP_CIRCULAR_REGION && b <= RPL_LOLLIPOP_CIRCULAR_REGION) {
@@ -827,7 +828,6 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
     PRINTF("RPL: Changed preferred parent, rank changed from %u to %u\n",
   	(unsigned)old_rank, best_dag->rank);
     RPL_STAT(rpl_stats.parent_switch++);
-
     if(RPL_IS_STORING(instance)) {
 #if !RPL_WITH_DCO	
       if(last_parent != NULL) {
