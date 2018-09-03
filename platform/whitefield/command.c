@@ -2,6 +2,12 @@
 
 #include "command.h"
 #include "udp-app.h"
+#include "rpl-dag-root.h"
+#define DEBUG DEBUG_PRINT
+#include "net/ip/uip-debug.h"
+
+extern int gNodeID;
+
 //PROCESS_NAME(udp_client_process);
 int cmd_start_udp(uint16_t id, char *buf, int buflen)
 {
@@ -14,6 +20,48 @@ int cmd_start_udp(uint16_t id, char *buf, int buflen)
   return n;
   
 } 
+
+/*
+appstat->totalpktsent = seq_id;
+  appstat->totalpktrecvd = g_pktstat.rcvcnt;
+  appstat->totalduppkt = g_pktstat.dupcnt;
+  appstat->minroudtriptime = g_pktstat.leastLatency;
+  appstat->maxroundtriptime = g_pktstat.maxLatency;
+
+*/
+int cmd_get_udpapp_stat(uint16_t id, char *buf, int buflen)
+{
+  udpapp_stat_t appstat;
+  int n = 0;
+
+  int isroot = rpl_dag_root_is_root();
+
+  udp_get_app_stat(&appstat);
+  if (isroot){  
+    ADD2BUF(NULL, "\t\"Total PKT Sent 2 BR\": \"%u\",\n", appstat.totalpktsent);
+    ADD2BUF(NULL, "\t\"Total PKT Recvd by BR\": \"%u\",\n", appstat.totalpktrecvd);
+    ADD2BUF(NULL, "\t\"Total PKT Dropped\": \"%u\",\n", (appstat.totalpktsent - appstat.totalpktrecvd));
+    ADD2BUF(NULL, "\t\"Total Dup PKT RCVD by BR\": \"%u\",\n", appstat.totalduppkt);
+    if (appstat.totalpktrecvd){
+      ADD2BUF(NULL, "\t\"PDR for upward direction\": \"%.2f\",\n", (float)appstat.totalpktrecvd/(float)appstat.totalpktsent);
+    }
+  }
+  else{
+    ADD2BUF(NULL, "\t\"Node:\" \"%d\",\n",gNodeID);
+    ADD2BUF(NULL, "\t\"Total REQ Sent\": \"%u\",\n", appstat.totalpktsent);
+    
+    ADD2BUF(NULL, "\t\"Total RSP Recvd\": \"%u\",\n", appstat.totalpktrecvd);
+    ADD2BUF(NULL, "\t\"Total RSP Dropped\": \"%u\",\n", (appstat.totalpktsent - appstat.totalpktrecvd));
+    ADD2BUF(NULL, "\t\"Total Dup RSP RCVD\": \"%u\",\n", appstat.totalduppkt);
+    if (appstat.totalpktrecvd){
+      ADD2BUF(NULL, "\t\"PDR for upward direction\": \"%.2f\",\n", (float)appstat.totalpktrecvd/(float)appstat.totalpktsent);
+    }
+    ADD2BUF(NULL, "\t\"Least E2E Latency\": \"%lu\",\n", appstat.minroudtriptime);
+    ADD2BUF(NULL, "\t\"MAX E2E Latency\": \"%lu\",\n", appstat.maxroundtriptime);
+  }
+  return n;
+}
+
 int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 {
 #if NETSTACK_CONF_WITH_IPV6
