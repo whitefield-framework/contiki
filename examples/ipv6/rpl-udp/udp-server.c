@@ -40,6 +40,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "common-hdr.h"
+#include "udp-app.h"
 
 #define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
@@ -57,6 +58,8 @@ PROCESS(udp_server_process, "UDP server process");
 AUTOSTART_PROCESSES(&udp_server_process);
 
 #define	MAX_NODES	1000
+
+#if 0
 typedef struct _dpkt_stat_
 {
 	uip_ipaddr_t ip;
@@ -64,8 +67,10 @@ typedef struct _dpkt_stat_
 	uint32_t dropcnt;
 	uint32_t unordered;
 	uint32_t rcvcnt;
-    long leastLatency;
+        uint32_t dupcnt;
+        long leastLatency;
 }dpkt_stat_t;
+#endif
 
 dpkt_stat_t g_dstats[MAX_NODES];
 uint32_t g_ds_cnt;
@@ -87,9 +92,22 @@ dpkt_stat_t *get_dpkt_stat(uip_ipaddr_t *srcip)
 long dpkt_latency_time(struct timeval *tv)
 {
   long duration=0;
+  long sentTime=0;
+  long recvTime=0;
   struct timeval curTime;
   gettimeofday(&curTime, NULL);
 
+  sentTime = tv->tv_sec * 1000000;
+  sentTime += tv->tv_usec;
+
+  recvTime = curTime.tv_sec * 1000000;
+  recvTime += curTime.tv_usec;
+
+  if (recvTime > sentTime){
+    duration = recvTime-sentTime;
+  }
+
+#if 0
   if (curTime.tv_sec > tv->tv_sec){
     duration = (curTime.tv_sec - tv->tv_sec) * 1000000;
   }
@@ -97,6 +115,7 @@ long dpkt_latency_time(struct timeval *tv)
   if (curTime.tv_usec > tv->tv_usec){
     duration += (curTime.tv_usec - tv->tv_usec); 
   }
+#endif
 
   return duration;
 }
@@ -107,6 +126,7 @@ tcpip_handler(void)
 {
   dpkt_t *pkt;
   dpkt_stat_t *ds;
+  long curpktlatency;
 
   if(!uip_newdata()) {
     return;
@@ -119,25 +139,50 @@ tcpip_handler(void)
       printf("dstats exceeded!\n");
       return;
     }
+
     ds = &g_dstats[g_ds_cnt++];
+    memset(ds, 0, sizeof(dpkt_stat_t));
     ds->ip = UIP_IP_BUF->srcipaddr;
   }
 
-  if(pkt->seq < ds->lastseq) {
-    ds->dropcnt++;
+  if (!ds->lastseq){
+    ds->lastseq = pkt->seq;
+    ds->rcvcnt++;
+    ds->leastLatency = ds->maxLatency = curpktlatency = dpkt_latency_time(&(pkt->sendTime));
+    goto SEND_REPLY;
   }
 
-  ds->rcvcnt++;
-  ds->lastseq = pkt->seq;
-  ds->leastLatency = dpkt_latency_time(&(pkt->sendTime));
-  PRINTF("DATA Received from [%d] with seq[%d] in duration[%ld mus]\n",
-         ds->ip.u8[sizeof(ds->ip.u8) - 1], pkt->seq, ds->leastLatency);
+  if (pkt->seq == ds->lastseq){
+    ds->dupcnt++;
+  }
+  else if(pkt->seq < ds->lastseq) {
+    ds->unordered++;
+    ds->rcvcnt++;
+  }
+  else{
+    ds->lastseq = pkt->seq;
+    ds->rcvcnt++;
+  }
+  
+  curpktlatency = dpkt_latency_time(&(pkt->sendTime));
+  if (curpktlatency < ds->leastLatency){
+    ds->leastLatency = curpktlatency;
+  }
+  
+  if (curpktlatency > ds->maxLatency){
+    ds->maxLatency = curpktlatency;
+  }
+  
+  SEND_REPLY:
+  PRINTF("DATA Received from [%d] with seq[%d] in duration[%ld mus] min duration[%ld mus] pkt drop[%u]\n",
+         ds->ip.u8[sizeof(ds->ip.u8) - 1], pkt->seq, curpktlatency, ds->leastLatency, (ds->lastseq - ds->rcvcnt));
 
 #if SERVER_REPLY
-	PRINTF("DATA sending reply\n");
-	uip_ipaddr_copy(&server_conn->ripaddr, &UIP_IP_BUF->srcipaddr);
-	uip_udp_packet_send(server_conn, "Reply", sizeof("Reply"));
-	uip_create_unspecified(&server_conn->ripaddr);
+  PRINTF("DATA sending reply\n");
+  uip_ipaddr_copy(&server_conn->ripaddr, &UIP_IP_BUF->srcipaddr);
+  //uip_udp_packet_send(server_conn, "Reply", sizeof("Reply"));
+  uip_udp_packet_send(server_conn, (unsigned char *)pkt, sizeof(dpkt_t));
+  uip_create_unspecified(&server_conn->ripaddr);
 #endif
 }
 /*---------------------------------------------------------------------------*/
@@ -249,5 +294,36 @@ PROCESS_THREAD(udp_server_process, ev, data)
 void start_udp_process()
 {
    return;
+}
+/*
+uint32_t lastseq;
+        uint32_t dropcnt;
+        uint32_t unordered;
+        uint32_t rcvcnt;
+        uint32_t dupcnt;
+*/
+void udp_get_app_stat(udpapp_stat_t *appstat)
+{
+ unsigned int s = 0;
+ unsigned int r = 0;
+ unsigned int d = 0;
+ unsigned int i = 0;
+
+ PRINTF("Stats Called on BR\n");
+ dpkt_stat_t *ds;
+ for(i=0;i<g_ds_cnt;i++) {
+  ds = &(g_dstats[i]);
+   if (!ds->rcvcnt){
+     continue;
+   }  
+
+   s += ds->lastseq;
+   r += ds->rcvcnt;
+   d += ds->dupcnt;
+ }
+ 
+ appstat->totalpktsent = s;
+ appstat->totalpktrecvd = r;
+ appstat->totalduppkt = d;
 }
 /*---------------------------------------------------------------------------*/

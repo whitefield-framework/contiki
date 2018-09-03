@@ -43,6 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "common-hdr.h"
+#include "udp-app.h"
 
 #include "dev/serial-line.h"
 #include "net/ipv6/uip-ds6-route.h"
@@ -62,7 +63,22 @@
 #define START_INTERVAL		(15 * CLOCK_SECOND)
 #define SEND_INTERVAL		(PERIOD * CLOCK_SECOND)
 #define SEND_TIME		(random_rand() % (SEND_INTERVAL))
-#define MAX_PAYLOAD_LEN		256
+#define MAX_PAYLOAD_LEN		1024
+#if 0
+typedef struct _app_stat_
+{
+  uint32_t lastseq;
+  uint32_t dropcnt;
+  uint32_t unordered;
+  uint32_t rcvcnt;
+  uint32_t dupcnt;
+  long leastLatency;
+}app_stat_t;
+
+app_stat_t g_stats;
+#endif
+
+dpkt_stat_t  g_pktstat;
 
 static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
@@ -74,16 +90,78 @@ AUTOSTART_PROCESSES(&udp_client_process);
 static int seq_id;
 static int reply;
 
+long dpkt_latency_time(struct timeval *tv)
+{
+  long duration=0;
+  long sentTime=0;
+  long recvTime=0;
+  struct timeval curTime;
+  gettimeofday(&curTime, NULL);
+
+  sentTime = tv->tv_sec * 1000000;
+  sentTime += tv->tv_usec;
+
+  recvTime = curTime.tv_sec * 1000000;
+  recvTime += curTime.tv_usec;
+
+  if (recvTime > sentTime){
+    duration = recvTime-sentTime;
+  }
+
+#if 0
+  if (curTime.tv_sec > tv->tv_sec){
+    duration = (curTime.tv_sec - tv->tv_sec) * 1000000;
+  }
+
+  if (curTime.tv_usec > tv->tv_usec){
+    duration += (curTime.tv_usec - tv->tv_usec); 
+  }
+#endif
+
+  return duration;
+}
+
 static void
 tcpip_handler(void)
 {
-  char *str;
+  dpkt_t *pkt;
+  long curpktlatency;
 
   if(uip_newdata()) {
-    str = uip_appdata;
-    str[uip_datalen()] = '\0';
+    pkt = (dpkt_t *)uip_appdata;
+    
+    if (!g_pktstat.lastseq){
+      g_pktstat.lastseq = pkt->seq;
+      g_pktstat.rcvcnt++;
+      g_pktstat.leastLatency = g_pktstat.maxLatency = curpktlatency = dpkt_latency_time(&(pkt->sendTime));
+      return;
+    }
+
+    PRINTF("Recvd Response with seq[%u] last rsp seq[%u]\n",pkt->seq, g_pktstat.lastseq);
+
+    if (pkt->seq == g_pktstat.lastseq){
+      g_pktstat.dupcnt++;
+    }
+    else if(pkt->seq < g_pktstat.lastseq) {
+      g_pktstat.unordered++;
+      g_pktstat.rcvcnt++;
+    }
+    else{
+      g_pktstat.lastseq = pkt->seq;
+      g_pktstat.rcvcnt++;
+    }
+
+    curpktlatency = dpkt_latency_time(&(pkt->sendTime));
+    if (curpktlatency < g_pktstat.leastLatency){
+      g_pktstat.leastLatency = curpktlatency;
+    }
+
+    if (curpktlatency > g_pktstat.maxLatency){
+      g_pktstat.maxLatency = curpktlatency;
+    }  
+
     reply++;
-    printf("DATA recv '%s' (s:%d, r:%d)\n", str, seq_id, reply);
+    printf("DATA recv (s:%d, r:%d) end2nd latency[%lu] minlatency[%lu]\n", seq_id, reply, curpktlatency, g_pktstat.leastLatency);
   }
 }
 
@@ -105,8 +183,8 @@ send_packet(void *ptr)
   pkt->seq = seq_id;
   gettimeofday(&(pkt->sendTime), NULL);
 
-  PRINTF("DATA send to %d 'Hello %d'\n",
-         server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
+  PRINTF("DATA send to %d 'Hello %d' size-%lu\n",
+         server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id, sizeof(pkt)+g_payload_len);
 
   uip_udp_packet_sendto(client_conn, buf, sizeof(pkt)+g_payload_len,
                         &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
@@ -170,6 +248,8 @@ void set_udp_param(void)
   if(ptr) g_payload_len = (int)atoi(ptr);
 	PRINTF("UDP g_send_interval:%d g_payload_len:%d\n", 
     g_send_interval, g_payload_len);
+  
+  memset(&g_pktstat, 0, sizeof(g_pktstat));
 }
 
 static struct etimer periodic;
@@ -179,6 +259,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
 {
   //static struct etimer periodic;
   static struct ctimer backoff_timer;
+  unsigned long  backoff;
 
   PROCESS_BEGIN();
 
@@ -187,7 +268,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
   set_global_address();
   set_udp_param();
   
-  PRINTF("UDP Client Auto start[%d] and iterval[%d]\n",g_auto_start, g_send_interval);
+  PRINTF("UDP Client Auto start[%d] and iterval[%d] [%d]\n",g_auto_start, g_send_interval, SEND_INTERVAL);
 
   PRINTF("UDP client process started nbr:%d routes:%d\n",
          NBR_TABLE_CONF_MAX_NEIGHBORS, UIP_CONF_MAX_ROUTES);
@@ -206,6 +287,9 @@ PROCESS_THREAD(udp_client_process, ev, data)
   PRINT6ADDR(&client_conn->ripaddr);
   PRINTF(" local/remote port %u/%u\n",
 	UIP_HTONS(client_conn->lport), UIP_HTONS(client_conn->rport));
+  
+  backoff = g_send_interval/4 + (g_send_interval / 4 * (uint32_t)random_rand()) / RANDOM_RAND_MAX;
+  PRINTF("Gnerated backoff[%lu]\n",backoff);
 
   if(g_send_interval > 0){
     etimer_set(&periodic, g_send_interval);
@@ -227,7 +311,9 @@ PROCESS_THREAD(udp_client_process, ev, data)
       PRINTF("Timer Expired [%d]\n",g_auto_start);
 			//send_packet(NULL);
       if (g_auto_start){
-       ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+       //ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+       backoff = g_send_interval/4 + (g_send_interval / 4 * (uint32_t)random_rand()) / RANDOM_RAND_MAX;
+       ctimer_set(&backoff_timer, backoff, send_packet, NULL);
       }
     }
   }
@@ -243,5 +329,16 @@ void start_udp_process()
     g_auto_start = 1;
     PRINTF("Started the UDP process[%d]\n", g_send_interval);
   }
+}
+
+void udp_get_app_stat(udpapp_stat_t *appstat)
+{
+  PRINTF("Stats Called on Node\n");
+
+  appstat->totalpktsent = seq_id;
+  appstat->totalpktrecvd = g_pktstat.rcvcnt;
+  appstat->totalduppkt = g_pktstat.dupcnt;
+  appstat->minroudtriptime = g_pktstat.leastLatency;
+  appstat->maxroundtriptime = g_pktstat.maxLatency; 
 }
 /*---------------------------------------------------------------------------*/
