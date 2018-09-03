@@ -613,7 +613,13 @@ static uint8_t
 compress_addr_64(uint8_t bitpos, uip_ipaddr_t *ipaddr, uip_lladdr_t *lladdr)
 {
   if(uip_is_addr_mac_addr_based(ipaddr, lladdr)) {
+#if SCSLOWPAN_CONF_FRAG_FORWARDING
+    memcpy(hc06_ptr, &ipaddr->u16[4], 8);
+    hc06_ptr += 8;
+    return 1 << bitpos;
+#else    
     return 3 << bitpos; /* 0-bits */
+#endif
   } else if(sicslowpan_is_iid_16_bit_compressable(ipaddr)) {
     /* compress IID to 16 bits xxxx::0000:00ff:fe00:XXXX */
     memcpy(hc06_ptr, &ipaddr->u16[7], 2);
@@ -1937,9 +1943,12 @@ input(void)
       /* Ok - add_fragment will store the fragment automatically - so
          we should not store more */
       buffer = NULL;
+      
+      PRINTF("Till reassembled size[%u]\n",frag_info[frag_context].reassembled_len);
 
       if(frag_info[frag_context].reassembled_len >= frag_size) {
         last_fragment = 1;
+	PRINTF("Its last fragment\n");
       }
       is_fragment = 1;
       break;
@@ -2076,6 +2085,7 @@ input(void)
 #if SCSLOWPAN_FRAG_FORWARDING
   FORWARD_FRAGMENT:
   if (outgoingvrb){
+    PRINTF("Total bytes sent-%u\n",outgoingvrb->bytesForwarded);
   	sicslowpan_send_fragment(outgoingvrb, frag_size, first_fragment);
     if (outgoingvrb->bytesForwarded >= frag_size){
       PRINTF("One complete packet is forwarded\n");

@@ -109,7 +109,7 @@ typedef unsigned short uip_stats_t;
 
 #define UIP_CONF_IP_FORWARD             0
 #ifndef UIP_CONF_BUFFER_SIZE
-#define UIP_CONF_BUFFER_SIZE		240
+#define UIP_CONF_BUFFER_SIZE	1280	
 #endif
 
 #define UIP_CONF_LLH_LEN                0
