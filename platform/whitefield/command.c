@@ -18,8 +18,7 @@ int cmd_start_udp(uint16_t id, char *buf, int buflen)
   start_udp_process();
   ADD2BUF(NULL, "UDP Client Sucess");
   return n;
-  
-} 
+}
 
 /*
 appstat->totalpktsent = seq_id;
@@ -37,7 +36,7 @@ int cmd_get_udpapp_stat(uint16_t id, char *buf, int buflen)
   int isroot = rpl_dag_root_is_root();
 
   udp_get_app_stat(&appstat);
-  if (isroot){  
+  if (isroot){
     ADD2BUF(NULL, "\t\"Total PKT Sent 2 BR\": \"%u\",\n", appstat.totalpktsent);
     ADD2BUF(NULL, "\t\"Total PKT Recvd by BR\": \"%u\",\n", appstat.totalpktrecvd);
     ADD2BUF(NULL, "\t\"Total PKT Dropped\": \"%u\",\n", (appstat.totalpktsent - appstat.totalpktrecvd));
@@ -49,7 +48,7 @@ int cmd_get_udpapp_stat(uint16_t id, char *buf, int buflen)
   else{
     ADD2BUF(NULL, "\t\"Node:\" \"%d\",\n",gNodeID);
     ADD2BUF(NULL, "\t\"Total REQ Sent\": \"%u\",\n", appstat.totalpktsent);
-    
+
     ADD2BUF(NULL, "\t\"Total RSP Recvd\": \"%u\",\n", appstat.totalpktrecvd);
     ADD2BUF(NULL, "\t\"Total RSP Dropped\": \"%u\",\n", (appstat.totalpktsent - appstat.totalpktrecvd));
     ADD2BUF(NULL, "\t\"Total Dup RSP RCVD\": \"%u\",\n", appstat.totalduppkt);
@@ -90,7 +89,7 @@ int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen)
 	}
 	return n;
 #else /* NETSTACK_CONF_WITH_IPV6 */
-	return snprintf(buf, buflen, "%u.%u.%u.%u", 
+	return snprintf(buf, buflen, "%u.%u.%u.%u",
 			addr->u8[0], addr->u8[1], addr->u8[2], addr->u8[3]);
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 }
@@ -158,7 +157,7 @@ int cmd_ipv6_stats(uint16_t id, char *buf, int buflen)
 	ADD2BUF(NULL, "\t\"fwded\": \"%d\",\n", uip_stat.ip.forwarded);
 	ADD2BUF(NULL, "\t\"drop\": \"%d\",\n", uip_stat.ip.drop);
 	ADD2BUF(NULL, "\t\"drop\": \"%d\",\n", uip_stat.ip.drop);
-	ADD2BUF(NULL, "\t\"ver_len_err\": \"%d\",\n", 
+	ADD2BUF(NULL, "\t\"ver_len_err\": \"%d\",\n",
 		uip_stat.ip.vhlerr + uip_stat.ip.hblenerr + uip_stat.ip.lblenerr);
 	ADD2BUF(NULL, "\t\"fragerr\": \"%d\",\n", uip_stat.ip.fragerr);
 	ADD2BUF(NULL, "\t\"chkerr\": \"%d\",\n", uip_stat.ip.chkerr);
@@ -168,8 +167,8 @@ int cmd_ipv6_stats(uint16_t id, char *buf, int buflen)
 	n = snprintf(buf, buflen, "ipv6 rcv=%d,sent=%d,fwded=%d,drop=%d,"
 			"ver_len_err=%d,"
 			"fragerr=%d,chkerr=%d,protoerr=%d",
-			uip_stat.ip.recv, uip_stat.ip.sent, uip_stat.ip.forwarded, uip_stat.ip.drop, 
-			(uip_stat.ip.vhlerr + uip_stat.ip.hblenerr + uip_stat.ip.lblenerr), 
+			uip_stat.ip.recv, uip_stat.ip.sent, uip_stat.ip.forwarded, uip_stat.ip.drop,
+			(uip_stat.ip.vhlerr + uip_stat.ip.hblenerr + uip_stat.ip.lblenerr),
 			uip_stat.ip.fragerr, uip_stat.ip.chkerr, uip_stat.ip.protoerr);
 	//UNLOCK();
 #endif
@@ -188,7 +187,7 @@ int cmd_icmp_stats(uint16_t id, char *buf, int buflen)
 	ADD2BUF(NULL, "}\n}");
 #if 0
 	n = snprintf(buf, buflen, "icmpv6 rcv=%d,sent=%d,drop=%d,typeerr=%d,chkerr=%d",
-			uip_stat.icmp.recv, uip_stat.icmp.sent, uip_stat.icmp.drop, 
+			uip_stat.icmp.recv, uip_stat.icmp.sent, uip_stat.icmp.drop,
 			uip_stat.icmp.typeerr, uip_stat.icmp.chkerr);
 #endif
 	return n;

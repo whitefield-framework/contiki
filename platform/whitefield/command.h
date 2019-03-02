@@ -15,11 +15,14 @@
 #define ERROR   printf
 
 #define ADD2BUF(FP, ...) \
-    if(FP) {\
-        fprintf(FP, __VA_ARGS__);\
+{\
+    FILE *mylocfp = (FP);\
+    if(mylocfp) {\
+        fprintf(mylocfp, __VA_ARGS__);\
     } else {\
         n += snprintf(buf+n, buflen-n, __VA_ARGS__); \
-    }
+    }\
+}
 
 int uip_ipaddr_to_str(const uip_ipaddr_t *addr, char *buf, int buflen);
 
