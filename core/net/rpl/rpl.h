@@ -38,12 +38,16 @@
 #ifndef RPL_H
 #define RPL_H
 
-#include "rpl-conf.h"
-
-#include "lib/list.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
-#include "sys/ctimer.h"
+	
+	#include "net/rpl/rpl-conf.h"
+	
+	#include "lib/list.h"
+	#include "net/ip/uip.h"
+	#include "net/ipv6/uip-ds6.h"
+	#include "sys/ctimer.h"
+	#ifdef USE_METRIC_CONTAINERS
+	#include "rpl-metrics-data.h"
+	#endif /* USE_METRIC_CONTAINERS */
 
 /*---------------------------------------------------------------------------*/
 typedef uint16_t rpl_rank_t;
@@ -72,6 +76,26 @@ typedef uint16_t rpl_ocp_t;
 #define RPL_DAG_MC_AGGR_MINIMUM         2
 #define RPL_DAG_MC_AGGR_MULTIPLICATIVE  3
 
+	/* position of the fields in metric container *
+	 * object header flags                        */
+	#define RPL_DAG_MC_POS_P_BIT         10
+	#define RPL_DAG_MC_POS_C_BIT          9
+	#define RPL_DAG_MC_POS_O_BIT          8
+	#define RPL_DAG_MC_POS_R_BIT          7
+	#define RPL_DAG_MC_POS_A_FIELD        4
+	#define RPL_DAG_MC_POS_PREC_FIELD     0
+	
+	/* The bit index within the flags field of
+	   the rpl_metric_object_energy structure. */
+	#define RPL_DAG_MC_ENERGY_INCLUDED	3
+	#define RPL_DAG_MC_ENERGY_TYPE		1
+	#define RPL_DAG_MC_ENERGY_ESTIMATION	0
+	
+	#define RPL_DAG_MC_ENERGY_TYPE_MAINS		0
+	#define RPL_DAG_MC_ENERGY_TYPE_BATTERY		1
+	#define RPL_DAG_MC_ENERGY_TYPE_SCAVENGING	2
+
+
 /* The bit index within the flags field of the rpl_metric_object_energy structure. */
 #define RPL_DAG_MC_ENERGY_INCLUDED	    3
 #define RPL_DAG_MC_ENERGY_TYPE		      1
@@ -91,6 +115,7 @@ struct rpl_metric_object_energy {
   uint8_t energy_est;
 };
 
+#ifndef USE_METRIC_CONTAINERS
 /* Logical representation of a DAG Metric Container. */
 struct rpl_metric_container {
   uint8_t type;
@@ -104,6 +129,7 @@ struct rpl_metric_container {
   } obj;
 };
 typedef struct rpl_metric_container rpl_metric_container_t;
+#endif /* USE_METRIC_CONTAINERS */
 /*---------------------------------------------------------------------------*/
 struct rpl_instance;
 struct rpl_dag;
@@ -111,16 +137,28 @@ struct rpl_dag;
 #define RPL_PARENT_FLAG_UPDATED           0x1
 #define RPL_PARENT_FLAG_LINK_METRIC_VALID 0x2
 
-struct rpl_parent {
-  struct rpl_dag *dag;
-#if RPL_WITH_MC
-  rpl_metric_container_t mc;
-#endif /* RPL_WITH_MC */
-  rpl_rank_t rank;
-  uint8_t dtsn;
-  uint8_t flags;
-};
-typedef struct rpl_parent rpl_parent_t;
+	struct rpl_parent {
+	  struct rpl_parent *next;
+	  struct rpl_dag *dag;
+	#if RPL_DAG_MC != RPL_DAG_MC_NONE
+	  rpl_metric_container_t mc;
+	#endif /* RPL_DAG_MC != RPL_DAG_MC_NONE */
+	  rpl_rank_t rank;
+	
+	  //#ifdef RPL_DAG_MC_USE_ETX
+	  uint16_t etx;
+	  //#endif /* RPL_DAG_MC_USE_ETX */
+	#ifdef RPL_DAG_MC_USE_LQL
+	  uint8_t lql;
+	#endif  /* RPL_DAG_MC_USE_LQL */
+	#ifdef RPL_DAG_MC_USE_LC
+	  uint16_t lc;
+	#endif  /* RPL_DAG_MC_USE_LC */
+	
+	  uint8_t dtsn;
+	  uint8_t updated;
+	};
+	typedef struct rpl_parent rpl_parent_t;
 /*---------------------------------------------------------------------------*/
 /* RPL DIO prefix suboption */
 struct rpl_prefix {
@@ -144,6 +182,7 @@ struct rpl_dag {
   rpl_parent_t *preferred_parent;
   rpl_rank_t rank;
   struct rpl_instance *instance;
+  LIST_STRUCT(parents);
   rpl_prefix_t prefix_info;
   uint32_t lifetime;
 };
@@ -200,6 +239,11 @@ typedef struct rpl_instance rpl_instance_t;
  */
 struct rpl_of {
   void (*reset)(struct rpl_dag *);
+  
+  #if defined(RPL_DAG_MC_USE_ETX) || defined(RPL_DAG_MC_CONST_USE_ETX)
+	  void (*neighbor_link_callback)(rpl_parent_t *, int, int);
+	#endif /* defined(RPL_DAG_MC_USE_ETX) || defined(RPL_DAG_MC_CONST_USE_ETX) */
+  
 #if RPL_WITH_DAO_ACK
   void (*dao_ack_callback)(rpl_parent_t *, int status);
 #endif
@@ -209,6 +253,7 @@ struct rpl_of {
   rpl_rank_t (*rank_via_parent)(rpl_parent_t *);
   rpl_parent_t *(*best_parent)(rpl_parent_t *, rpl_parent_t *);
   rpl_dag_t *(*best_dag)(rpl_dag_t *, rpl_dag_t *);
+  rpl_rank_t (*calculate_rank)(rpl_parent_t *, rpl_rank_t);
   void (*update_metric_container)( rpl_instance_t *);
   rpl_ocp_t ocp;
 };
@@ -277,8 +322,12 @@ rpl_instance_t *rpl_get_instance(uint8_t instance_id);
 int rpl_update_header(void);
 int rpl_finalize_header(uip_ipaddr_t *addr);
 int rpl_verify_hbh_header(int);
+void rpl_update_header_empty(void);
+int rpl_update_header_final(uip_ipaddr_t *addr);
+int rpl_verify_header(int);
 void rpl_insert_header(void);
 void rpl_remove_header(void);
+uint8_t rpl_invert_header(void);
 const struct link_stats *rpl_get_parent_link_stats(rpl_parent_t *p);
 int rpl_parent_is_fresh(rpl_parent_t *p);
 int rpl_parent_is_reachable(rpl_parent_t *p);
@@ -288,6 +337,7 @@ const linkaddr_t *rpl_get_parent_lladdr(rpl_parent_t *p);
 uip_ipaddr_t *rpl_get_parent_ipaddr(rpl_parent_t *nbr);
 rpl_parent_t *rpl_get_parent(uip_lladdr_t *addr);
 rpl_rank_t rpl_get_parent_rank(uip_lladdr_t *addr);
+uint16_t rpl_get_parent_link_metric(uip_lladdr_t *addr);
 void rpl_dag_init(void);
 uip_ds6_nbr_t *rpl_get_nbr(rpl_parent_t *parent);
 void rpl_print_neighbor_list(void);
