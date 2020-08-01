@@ -50,6 +50,29 @@
 #define DEBUG DEBUG_NONE
 #include "net/ip/uip-debug.h"
 
+static void reset(rpl_dag_t *);
+	static rpl_parent_t *best_parent(rpl_parent_t *, rpl_parent_t *);
+	static rpl_dag_t *best_dag(rpl_dag_t *, rpl_dag_t *);
+	static rpl_rank_t calculate_rank(rpl_parent_t *, rpl_rank_t);
+	static void update_metric_container(rpl_instance_t *);
+	
+	
+	rpl_of_t rpl_of0 = {
+	  reset,
+	  NULL,
+	  best_parent,
+	  best_dag,
+	  calculate_rank,
+	  update_metric_container,
+	  0
+	};
+	
+	#define DEFAULT_RANK_INCREMENT  RPL_MIN_HOPRANKINC
+	
+	
+	
+	#define MIN_DIFFERENCE (RPL_MIN_HOPRANKINC + RPL_MIN_HOPRANKINC / 2)
+
 /* Constants from RFC6552. We use the default values. */
 #define RANK_STRETCH       0 /* Must be in the range [0;5] */
 #define RANK_FACTOR        1 /* Must be in the range [1;4] */
@@ -161,78 +184,82 @@ parent_has_usable_link(rpl_parent_t *p)
   return parent_is_acceptable(p);
 }
 /*---------------------------------------------------------------------------*/
-static rpl_parent_t *
-best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
-{
-  rpl_dag_t *dag;
-  uint16_t p1_cost;
-  uint16_t p2_cost;
-  int p1_is_acceptable;
-  int p2_is_acceptable;
-
-  p1_is_acceptable = p1 != NULL && parent_is_acceptable(p1);
-  p2_is_acceptable = p2 != NULL && parent_is_acceptable(p2);
-
-  if(!p1_is_acceptable) {
-    return p2_is_acceptable ? p2 : NULL;
-  }
-  if(!p2_is_acceptable) {
-    return p1_is_acceptable ? p1 : NULL;
-  }
-
-  dag = p1->dag; /* Both parents are in the same DAG. */
-  p1_cost = parent_path_cost(p1);
-  p2_cost = parent_path_cost(p2);
-
-  /* Paths costs coarse-grained (multiple of min_hoprankinc), we operate without hysteresis */
-  if(p1_cost != p2_cost) {
-    /* Pick parent with lowest path cost */
-    return p1_cost < p2_cost ? p1 : p2;
-  } else {
-    /* We have a tie! */
-    /* Stik to current preferred parent if possible */
-    if(p1 == dag->preferred_parent || p2 == dag->preferred_parent) {
-      return dag->preferred_parent;
-    }
-    /* None of the nodes is the current preferred parent,
-     * choose parent with best link metric */
-    return parent_link_metric(p1) < parent_link_metric(p2) ? p1 : p2;
-  }
-}
+	static rpl_parent_t *
+	best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
+	{
+	  rpl_rank_t r1, r2;
+	  rpl_dag_t *dag;
+	  
+	  PRINTF("RPL: Comparing parent ");
+	  PRINT6ADDR(rpl_get_parent_ipaddr(p1));
+	  PRINTF(" (confidence %d, rank %d) with parent ",
+	        p1->link_metric, p1->rank);
+	  PRINT6ADDR(rpl_get_parent_ipaddr(p2));
+	  PRINTF(" (confidence %d, rank %d)\n",
+	        p2->link_metric, p2->rank);
+	
+	
+	
+	
+	  r1 = DAG_RANK(p1->rank, p1->dag->instance) * RPL_MIN_HOPRANKINC  +
+	         p1->link_metric;
+	  r2 = DAG_RANK(p2->rank, p1->dag->instance) * RPL_MIN_HOPRANKINC  +
+	         p2->link_metric;
+	  /* Compare two parents by looking both and their rank and at the ETX
+	     for that parent. We choose the parent that has the most
+	     favourable combination. */
+	
+	
+	
+	
+	  dag = (rpl_dag_t *)p1->dag; /* Both parents must be in the same DAG. */
+	  if(r1 < r2 + MIN_DIFFERENCE &&
+	     r1 > r2 - MIN_DIFFERENCE) {
+	    return dag->preferred_parent;
+	  } else if(r1 < r2) {
+	    return p1;
+	  } else {
+	    return p2;
+	
+	
+	
+	
+	
+	
+	
+	  }
+	}
 /*---------------------------------------------------------------------------*/
-static rpl_dag_t *
-best_dag(rpl_dag_t *d1, rpl_dag_t *d2)
-{
-  if(d1->grounded != d2->grounded) {
-    return d1->grounded ? d1 : d2;
-  }
+	static rpl_dag_t *
+	best_dag(rpl_dag_t *d1, rpl_dag_t *d2)
+	
+	{
+	  if(d1->grounded) {
+	    if (!d2->grounded) {
+	      return d1;
+	    }
+	  } else if(d2->grounded) {
+	    return d2;
 
-  if(d1->preference != d2->preference) {
-    return d1->preference > d2->preference ? d1 : d2;
-  }
+	  }
+	
+	  if(d1->preference < d2->preference) {
+	    return d2;
+	  } else {
+	    if(d1->preference > d2->preference) {
+	      return d1;
+	    }
+	
+	
+	  }
+	
+	  if(d2->rank < d1->rank) {
+	    return d2;
+	
+	  } else {
+	    return d1;
+	  }
+	}
 
-  return d1->rank < d2->rank ? d1 : d2;
-}
-/*---------------------------------------------------------------------------*/
-static void
-update_metric_container(rpl_instance_t *instance)
-{
-  instance->mc.type = RPL_DAG_MC_NONE;
-}
-/*---------------------------------------------------------------------------*/
-rpl_of_t rpl_of0 = {
-  reset,
-#if RPL_WITH_DAO_ACK
-  dao_ack_callback,
-#endif
-  parent_link_metric,
-  parent_has_usable_link,
-  parent_path_cost,
-  rank_via_parent,
-  best_parent,
-  best_dag,
-  update_metric_container,
-  RPL_OCP_OF0
-};
 
 /** @}*/
