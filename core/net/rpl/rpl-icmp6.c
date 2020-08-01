@@ -332,6 +332,11 @@ void RPL_DEBUG_DAO_OUTPUT(rpl_parent_t *);
 
 static uint8_t dao_sequence = RPL_LOLLIPOP_INIT;
 
+uint8_t rpl_leaf =  RPL_LEAF_ONLY;
+uint8_t leaf_dio = 0;
+
+extern rpl_of_t RPL_OF;
+
 #if RPL_WITH_DCO
 uint8_t path_sequence = RPL_LOLLIPOP_INIT;
 static uint8_t dco_sequence = RPL_LOLLIPOP_INIT;
