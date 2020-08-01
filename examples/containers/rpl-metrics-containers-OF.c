@@ -12,7 +12,7 @@
 #define DEBUG DEBUG_NONE
 #endif /*DEBUG_RPL_OF*/
 
-#include "net/uip-debug.h"
+#include "net/ip/uip-debug.h"
 
 
 static void reset(rpl_dag_t *);
