@@ -8,7 +8,7 @@
 #else
 #define DEBUG DEBUG_NONE
 #endif
-#include "net/uip-debug.h"
+#include "net/ip/uip-debug.h"
 #include <stdio.h>
 
 static uint16_t max_charge;
@@ -81,8 +81,8 @@ uint8_t rpl_metrics_get_hop_count()
 uint32_t rpl_metrics_get_throughput()
 {
 
-  if(AM_I_NODE(3))
-    return (150*65536);
+ /* if(AM_I_NODE(3))
+    return (150*65536);*/
   return (100*65536);
 }
 
@@ -91,9 +91,9 @@ uint32_t rpl_metrics_get_throughput()
 uint32_t rpl_metrics_get_latency()
 {
 
-  if(AM_I_NODE(3))
+  /*if(AM_I_NODE(3))
     return (100*65536);
-  return (150*65536);
+  return (150*65536);*/
 }
 
 /********************************************************************/
@@ -206,11 +206,11 @@ uint8_t rpl_metrics_power_refresh()
   if(power32 >= ((uint32_t)max_charge<<16)){
     batt_used= 0xFF;
 #ifdef STATISTICS
-    if(!depleted_battery)
+   // if(!depleted_battery)
       printf("30 Battery used: 100%%\n");
 #endif /*STATISTICS*/
 
-    depleted_battery= 1;
+  //  depleted_battery= 1;
     leds_on(1);//BLUE
 
 
@@ -226,7 +226,7 @@ uint8_t rpl_metrics_power_refresh()
     static uint8_t perc_75=0;
 
     perc= (batt_used*100)/0xFF;
-    if( (perc>= 75) && (!depleted_battery)){
+    if( (perc>= 75)){    // && (!depleted_battery)
       if(!perc_75){
 	perc_75++;
       printf("30 Battery used: 75%%\n");
