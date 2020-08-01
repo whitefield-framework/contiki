@@ -45,6 +45,14 @@
 	#include "net/ip/uip.h"
 	#include "net/ipv6/uip-ds6.h"
 	#include "sys/ctimer.h"
+
+struct rpl_metric_object_energy {
+  uint8_t flags;
+  uint8_t energy_est;
+};
+
+typedef struct rpl_metric_object_energy rpl_metric_object_energy_t; 
+
 	#ifdef USE_METRIC_CONTAINERS
 	#include "rpl-metrics-data.h"
 	#endif /* USE_METRIC_CONTAINERS */
@@ -110,10 +118,10 @@ typedef uint16_t rpl_ocp_t;
 #define RPL_OCP_OF0     0
 #define RPL_OCP_MRHOF   1
 
-struct rpl_metric_object_energy {
+/*struct rpl_metric_object_energy {
   uint8_t flags;
   uint8_t energy_est;
-};
+};*/
 
 #ifndef USE_METRIC_CONTAINERS
 /* Logical representation of a DAG Metric Container. */
@@ -154,9 +162,10 @@ struct rpl_dag;
 	#ifdef RPL_DAG_MC_USE_LC
 	  uint16_t lc;
 	#endif  /* RPL_DAG_MC_USE_LC */
-	
+	  uint8_t link_metric;
 	  uint8_t dtsn;
 	  uint8_t updated;
+          uint8_t flags;
 	};
 	typedef struct rpl_parent rpl_parent_t;
 /*---------------------------------------------------------------------------*/
@@ -337,7 +346,7 @@ const linkaddr_t *rpl_get_parent_lladdr(rpl_parent_t *p);
 uip_ipaddr_t *rpl_get_parent_ipaddr(rpl_parent_t *nbr);
 rpl_parent_t *rpl_get_parent(uip_lladdr_t *addr);
 rpl_rank_t rpl_get_parent_rank(uip_lladdr_t *addr);
-uint16_t rpl_get_parent_link_metric(uip_lladdr_t *addr);
+
 void rpl_dag_init(void);
 uip_ds6_nbr_t *rpl_get_nbr(rpl_parent_t *parent);
 void rpl_print_neighbor_list(void);
