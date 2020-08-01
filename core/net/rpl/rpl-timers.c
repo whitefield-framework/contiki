@@ -77,6 +77,8 @@ static uint16_t next_dis;
 /* dio_send_ok is true if the node is ready to send DIOs */
 static uint8_t dio_send_ok;
 
+extern uint8_t rpl_leaf;
+
 /*---------------------------------------------------------------------------*/
 static void
 handle_periodic_timer(void *ptr)
